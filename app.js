@@ -352,6 +352,30 @@ function nearestFreeTable() {
   for (const T of TABLES) { if (T.by === 'npc') continue; const d = Math.hypot(T.x - player.x, T.z - player.z); if (d < bd) { bd = d; best = T; } }
   return best || TABLES[0];
 }
+/* 마지막으로 하이파이브한 사람은 테이블과 스테이지를 함께 오간다 */
+let buddy = null;
+function buddyToTable(T, px, pz) {
+  if (!buddy) return;
+  const n = buddy, d = Math.hypot(px - T.x, pz - T.z) || 1, sx = T.x - ((px - T.x) / d) * 0.8, sz = T.z - ((pz - T.z) / d) * 0.8;
+  n.mingle = false; mingling = mingling.filter((m) => m !== n);
+  n.upTo = 0; n.role = 'table'; n.speed = Math.max(n.speed, player.speed);
+  say(n, pick(['좋아요, 같이 가요!', '목 좀 축여요!', '저도 한 잔 할게요!']), 2);
+  const settle = (tries) => {
+    if (Math.hypot(n.x - sx, n.z - sz) > 1.2 && tries > 0) { goTo(n, sx, sz, () => settle(tries - 1)); return; }
+    n.yawTo = Math.atan2(T.x - n.x, T.z - n.z);
+    if (!n.cup) npcCups(n);
+    n.danceTo = 1; n.danceStyle = 0; n.groove = 0.45; n.talkTo = 0.5; n.nextAct = now() + rand(3, 8);
+    say(n, pick(venue.tableTalk), 2.4);
+  };
+  goTo(n, sx, sz, () => settle(2));
+}
+function buddyToStage(x, z) {
+  if (!buddy) return;
+  const n = buddy, a = rand(0, 6.28), sx = clamp(x + Math.sin(a) * 1.1, FLOOR.xMin + 0.5, FLOOR.xMax - 0.5), sz = clamp(z + Math.cos(a) * 1.1, ROOM.zMin, FLOOR.zMax - 0.3);
+  n.talkTo = 0; n.speed = Math.max(n.speed, player.speed);
+  say(n, pick(venue.hellos), 2);
+  goTo(n, sx, sz, () => { n.yawTo = Math.atan2(player.x - n.x, player.z - n.z); setRole(n, 'floor'); n.nextAct = now() + rand(8, 20); });
+}
 function walkPlayer(x, z, done = null) {
   stopMingle(x, z);
   dest.position.set(x, 0.045, z); dest.visible = true;
@@ -363,6 +387,7 @@ function walkToTable(T) {
   const x = T.x + (dirX / d) * 0.72, z = T.z + (dirZ / d) * 0.72;
   if (T.by === 'npc') { toast('다른 손님들이 쓰는 테이블입니다. 함께 서 볼까요?', 2.2); }
   myTable = T;
+  buddyToTable(T, x, z);
   camSet(clamp(-T.x * 0.05, -0.5, 0.5), 1.38, 4.6, 1.35);
   walkPlayer(x, z, () => {
     player.yawTo = Math.atan2(T.x - player.x, T.z - player.z);
@@ -434,6 +459,7 @@ function goStage() {
     if (near > bd) { bd = near; best = [x, z]; }
   }
   setStep(5);
+  buddyToStage(best[0], best[1]);
   walkPlayer(best[0], best[1], () => {
     player.yawTo = 0 + Math.PI;
     edm.setRoom(3); stageArrived = true;
@@ -480,6 +506,7 @@ function highFive() {
   const near = pool.map((n) => ({ n, d: Math.hypot(n.x - player.x, n.z - player.z) })).sort((a, b) => a.d - b.d)[0];
   if (!near || near.d > 2.8) { toast('하이파이브할 사람이 가까이에 없습니다'); return; }
   const n = near.n;
+  buddy = n;
   // 서로 손이 닿는 거리까지 다가선다
   const ux = (player.x - n.x) / near.d, uz = (player.z - n.z) / near.d;
   n.target = null; n.onArrive = null; goTo(n, player.x - ux * 0.84, player.z - uz * 0.84, () => { n.yawTo = Math.atan2(player.x - n.x, player.z - n.z); n.danceTo = 1; }); n.run = true; later(0.5, () => { n.run = false; });
@@ -732,4 +759,4 @@ phase = 'queue'; setupQueue(); setStep(1); renderUi();
 camSet(0.82, 1.46, 8.2, 2);
 
 // 시험용 접근점
-window.club = { edm, player, npcs, renderer, state: () => ({ phase, step, grooving, grooveBeats, hi5, mingling: mingling.length, sips: myDrink.sips, x: player.x, z: player.z, queue: queue.indexOf(player) }), clockNow: () => edm.clock() };
+window.club = { edm, player, npcs, renderer, buddy: () => buddy, state: () => ({ phase, step, grooving, grooveBeats, hi5, mingling: mingling.length, sips: myDrink.sips, x: player.x, z: player.z, queue: queue.indexOf(player) }), clockNow: () => edm.clock() };
