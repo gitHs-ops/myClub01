@@ -1,8 +1,9 @@
 import * as THREE from './vendor/three.min.js';
-import { Edm, TRACKS } from './edm.js?v=5';
+import { Edm, TRACKS } from './edm.js?v=6';
 import { makePerson, updatePerson, goTo, say, jump, setWardrobe } from './people.js?v=3';
 import { buildWorld, ROOM, FLOOR, TABLES, BAR_SPOTS } from './world.js?v=4';
 import { VENUES } from './venues.js?v=1';
+import { listTracks, addTrack, putTrack, removeTrack, isAudioFile, titleOf, analyze } from './mylist.js?v=1';
 
 const $ = (id) => document.getElementById(id);
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
@@ -221,8 +222,8 @@ addEventListener('keyup', (e) => keys.delete(e.code));
 addEventListener('blur', () => keys.clear());
 
 /* ───── 화면 ───── */
-const modalOpen = () => !$('drinkModal').hidden || !$('settingsModal').hidden || !$('exitModal').hidden;
-const closeModals = () => { $('drinkModal').hidden = true; $('settingsModal').hidden = true; $('exitModal').hidden = true; };
+const modalOpen = () => !$('drinkModal').hidden || !$('settingsModal').hidden || !$('exitModal').hidden || !$('myListModal').hidden;
+const closeModals = () => { $('drinkModal').hidden = true; $('settingsModal').hidden = true; $('exitModal').hidden = true; $('myListModal').hidden = true; };
 document.querySelectorAll('[data-close]').forEach((b) => { b.onclick = closeModals; });
 document.querySelectorAll('.modalBack').forEach((m) => m.addEventListener('pointerdown', (e) => { if (e.target === m) closeModals(); }));
 let toastT;
@@ -567,10 +568,10 @@ function renderUi() {
 function drawTracks() {
   const box = $('trackList'); box.textContent = '';
   TRACKS.filter((x) => x.venue === venue.id).forEach((t) => {
-    const b = document.createElement('button'); b.className = `listBtn${edm.track.id === t.id ? ' on' : ''}`;
+    const b = document.createElement('button'); b.className = `listBtn${!edm.fileMode && edm.track.id === t.id ? ' on' : ''}`;
     const s = document.createElement('span'); const st = document.createElement('strong'); st.textContent = t.name; const sm = document.createElement('small'); sm.textContent = t.desc; s.append(st, sm); b.append(s);
-    b.setAttribute('aria-pressed', String(edm.track.id === t.id));
-    b.onclick = () => { settings.tracks[venue.id] = t.id; saveSettings(); edm.setTrack(t.id); $('nowName').textContent = t.name; drawTracks(); };
+    b.setAttribute('aria-pressed', String(!edm.fileMode && edm.track.id === t.id));
+    b.onclick = () => { settings.tracks[venue.id] = t.id; saveSettings(); edm.setTrack(t.id); nowFile = null; $('nowName').textContent = t.name; drawTracks(); };
     box.append(b);
   });
 }
@@ -581,15 +582,140 @@ edm.autoNext = venue.id === 'club' && settings.autoNext;
 const announceTrack = (t) => { $('nowName').textContent = t.name; toast(`${t.name} · ${t.desc}`, 2.6); if (!$('settingsModal').hidden) drawTracks(); };
 edm.onTrack = announceTrack;
 $('nowChip').onclick = () => {
-  const next = venueTracks[(venueTracks.indexOf(edm.track) + 1) % venueTracks.length];
+  // 7080은 기본 곡 다음에 myList 곡으로 이어진다
+  const order = [...venueTracks, ...myItems()], cur = nowFile || edm.track, next = order[(order.indexOf(cur) + 1) % order.length];
+  if (next.blob) { playItem(next); return; }
+  nowFile = null;
   settings.tracks[venue.id] = next.id; saveSettings();
-  edm.setTrack(next.id); announceTrack(next);
+  edm.setTrack(next.id); announceTrack(next); renderMyList();
 };
 $('autoNextRow').hidden = venue.id !== 'club';
 $('autoNext').onchange = (e) => { settings.autoNext = e.target.checked; edm.autoNext = venue.id === 'club' && settings.autoNext; saveSettings(); };
 $('btnSettings').onclick = () => { drawTracks(); $('autoNext').checked = settings.autoNext; $('volume').value = settings.volume; $('lowFx').checked = settings.lowFx; $('settingsModal').hidden = false; };
 $('volume').oninput = (e) => { settings.volume = +e.target.value; edm.setVolume(settings.volume / 100); saveSettings(); };
 $('lowFx').onchange = (e) => { settings.lowFx = e.target.checked; fxState.full = !settings.lowFx; saveSettings(); };
+
+/* ───── myList: 내 음원 (7080 무대) ───── */
+let saved = [], temp = [], nowFile = null, nowUrl = null, armedDelete = null, tempSeq = 0;
+const myItems = () => [...saved, ...temp];
+const fmtSize = (b) => (b >= 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
+const fmtTime = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+async function refreshSaved() {
+  try { saved = await listTracks(); } catch { saved = []; toast('이 브라우저에서는 myList를 쓸 수 없습니다'); }
+  // 재생 중인 곡은 같은 항목으로 다시 잇는다
+  if (nowFile && !nowFile.temp) nowFile = saved.find((x) => x.id === nowFile.id) || nowFile;
+}
+function renderMyList() {
+  if (!venue.band) return;
+  const box = $('myListItems'); box.textContent = '';
+  $('myListEmpty').hidden = myItems().length > 0;
+  myItems().forEach((it) => {
+    const row = document.createElement('div'); row.className = `mlRow${nowFile === it ? ' on' : ''}`;
+    const play = document.createElement('button'); play.className = 'mlMain';
+    const paused = nowFile === it && edm.fileEl?.paused;
+    const icon = document.createElement('span'); icon.className = 'mlIcon'; icon.textContent = nowFile === it && !paused ? '❚❚' : '▶';
+    const text = document.createElement('span'); text.className = 'mlText';
+    const st = document.createElement('strong'); st.textContent = it.title;
+    const sm = document.createElement('small');
+    const dur = it.analysis?.duration;
+    sm.textContent = [it.temp ? '저장되지 않음' : 'myList', dur ? fmtTime(dur) : null, fmtSize(it.size), it.analysis ? `${Math.round(it.analysis.bpm)} BPM` : null].filter(Boolean).join(' · ');
+    text.append(st, sm); play.append(icon, text);
+    play.setAttribute('aria-label', `${it.title} ${nowFile === it && !paused ? '일시정지' : '재생'}`);
+    play.onclick = () => { if (nowFile === it) { edm.togglePause(); renderMyList(); } else playItem(it); };
+    row.append(play);
+    if (it.temp) {
+      const keep = document.createElement('button'); keep.className = 'mlSmall'; keep.textContent = '저장';
+      keep.onclick = () => keepTemp(it);
+      row.append(keep);
+    }
+    const del = document.createElement('button'); del.className = 'mlSmall danger'; del.textContent = armedDelete === it ? '정말 삭제' : '삭제';
+    del.onclick = () => { if (armedDelete === it) deleteItem(it); else { armedDelete = it; renderMyList(); } };
+    row.append(del);
+    box.append(row);
+  });
+  $('myListStop').hidden = !nowFile;
+  if (navigator.storage?.estimate) navigator.storage.estimate().then((s) => { $('myListUsage').textContent = `사용 중 ${fmtSize(s.usage || 0)}`; }).catch(() => {});
+}
+function backToBand() {
+  nowFile = null; edm.stopFile();
+  if (nowUrl) { URL.revokeObjectURL(nowUrl); nowUrl = null; }
+  $('nowName').textContent = edm.track.name;
+  renderMyList();
+}
+function playItem(it) {
+  if (nowUrl) URL.revokeObjectURL(nowUrl);
+  nowUrl = URL.createObjectURL(it.blob); nowFile = it;
+  edm.playFile(nowUrl, it.analysis).catch((err) => {
+    if (err?.name === 'NotAllowedError') toast('재생 버튼을 한 번 더 눌러 주세요');
+  });
+  $('nowName').textContent = it.title; toast(it.title, 2.2);
+  renderMyList();
+  if (!it.analysis && it.size < 80 * 1048576) analyzeItem(it);
+}
+async function analyzeItem(it) {
+  try {
+    const data = await it.blob.arrayBuffer(), buf = await edm.ctx.decodeAudioData(data);
+    it.analysis = analyze(buf);
+    if (nowFile === it) edm.analysis = it.analysis;
+    if (!it.temp) await putTrack(it);
+    renderMyList();
+  } catch { /* 분석하지 못해도 재생은 계속된다 (120 BPM으로 움직인다) */ }
+}
+function deleteItem(it) {
+  armedDelete = null;
+  if (nowFile === it) backToBand();
+  if (it.temp) { temp = temp.filter((x) => x !== it); renderMyList(); return; }
+  removeTrack(it.id).then(refreshSaved).then(() => { toast('myList에서 지웠습니다'); renderMyList(); }).catch(() => toast('지우지 못했습니다'));
+}
+async function keepTemp(it) {
+  try {
+    const rec = { title: it.title, name: it.name, size: it.size, type: it.type, blob: it.blob, analysis: it.analysis || null, addedAt: Date.now() };
+    const id = await addTrack(rec);
+    temp = temp.filter((x) => x !== it);
+    await refreshSaved();
+    if (nowFile === it) nowFile = saved.find((x) => x.id === id) || null;
+    toast('myList에 저장했습니다'); renderMyList();
+  } catch (err) { toast(err?.name === 'QuotaExceededError' ? '브라우저 저장 공간이 부족합니다' : '저장하지 못했습니다'); }
+}
+async function addFiles(files, keep) {
+  const good = [...files].filter(isAudioFile), bad = files.length - good.length;
+  if (bad) toast(`음원이 아닌 파일 ${bad}개는 뺐습니다`);
+  if (!good.length) return;
+  let first = null;
+  if (keep) {
+    navigator.storage?.persist?.();
+    for (const f of good) {
+      if (saved.some((x) => x.name === f.name && x.size === f.size)) { toast(`이미 있는 곡입니다: ${titleOf(f.name)}`); continue; }
+      try {
+        const id = await addTrack({ title: titleOf(f.name), name: f.name, size: f.size, type: f.type, blob: f, analysis: null, addedAt: Date.now() });
+        first ??= id;
+      } catch (err) { toast(err?.name === 'QuotaExceededError' ? '브라우저 저장 공간이 부족합니다' : '이 브라우저에서는 저장할 수 없어 이번만 재생합니다'); temp.push({ temp: true, id: `t${++tempSeq}`, title: titleOf(f.name), name: f.name, size: f.size, type: f.type, blob: f, analysis: null }); }
+    }
+    await refreshSaved();
+    renderMyList();
+    const it = saved.find((x) => x.id === first) || temp[temp.length - 1];
+    if (it) { playItem(it); toast(`${good.length}곡을 myList에 저장했습니다`); }
+  } else {
+    const added = good.map((f) => ({ temp: true, id: `t${++tempSeq}`, title: titleOf(f.name), name: f.name, size: f.size, type: f.type, blob: f, analysis: null }));
+    temp.push(...added); playItem(added[0]);
+  }
+}
+if (venue.band) {
+  $('btnMyList').hidden = false;
+  $('btnMyList').onclick = () => { armedDelete = null; renderMyList(); $('myListModal').hidden = false; };
+  $('mlAdd').onclick = () => $('mlSaveInput').click();
+  $('mlTemp').onclick = () => $('mlTempInput').click();
+  $('mlSaveInput').onchange = (e) => { const f = [...e.target.files]; e.target.value = ''; addFiles(f, true); };
+  $('mlTempInput').onchange = (e) => { const f = [...e.target.files]; e.target.value = ''; addFiles(f, false); };
+  $('myListStop').onclick = () => { backToBand(); toast('밴드 연주로 돌아갑니다'); };
+  edm.onFileEnd = () => {
+    const list = myItems(), i = list.indexOf(nowFile);
+    if (!list.length || i < 0) { backToBand(); return; }
+    playItem(list[(i + 1) % list.length]);
+  };
+  edm.onFileError = () => { toast('이 형식은 재생할 수 없습니다'); backToBand(); };
+  await refreshSaved();
+}
 
 /* 나가기: 확인 뒤 화면을 어둡게 하고 줄 고르는 처음 화면으로 돌아간다 */
 $('btnExit').onclick = () => {

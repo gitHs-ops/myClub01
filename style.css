@@ -39,6 +39,7 @@ canvas#scene:active { cursor: grabbing; }
 #steps li.on b { background: #fff; color: var(--accent-secondary); }
 #hudRight { display: flex; gap: 8px; align-items: center; }
 .chip { display: flex; align-items: center; gap: 8px; height: 42px; padding: 0 14px; border-radius: 999px; font: 600 13px var(--font-accent); white-space: nowrap; }
+#nowName { max-width: 170px; overflow: hidden; text-overflow: ellipsis; }
 #nowChip { cursor: pointer; color: var(--text-primary); }
 #nowChip:hover { transform: translateY(-2px); }
 #nowChip:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
@@ -66,6 +67,20 @@ canvas#scene:active { cursor: grabbing; }
 
 #toast { position: fixed; top: 76px; left: 50%; transform: translate(-50%, -10px); padding: 10px 20px; border-radius: 999px; background: #0f172a; color: #fff; font-weight: 700; font-size: 15px; opacity: 0; pointer-events: none; z-index: 6; transition: opacity .3s ease, transform .3s var(--ease); white-space: nowrap; max-width: 92vw; }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* myList */
+.mlButtons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+.mlEmpty { margin: 4px 0 0; }
+.mlRow { display: flex; align-items: center; gap: 6px; padding: 6px; margin-bottom: 6px; border-radius: 14px; border: 1px solid var(--field-border); background: var(--field-bg); animation: cardIn .3s var(--ease) both; }
+.mlRow.on { border-color: var(--accent-primary); box-shadow: 0 0 0 3px var(--accent-glow); }
+.mlMain { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; border: 0; background: none; padding: 4px; font: inherit; color: inherit; text-align: left; cursor: pointer; border-radius: 10px; }
+.mlIcon { width: 34px; height: 34px; flex: none; display: grid; place-items: center; border-radius: 50%; background: linear-gradient(135deg, #b45309, #be123c); color: #fff; font-size: 12px; }
+.mlText { min-width: 0; }
+.mlText strong { display: block; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mlText small { font-size: 12px; color: var(--text-secondary); }
+.mlSmall { flex: none; border: 1px solid var(--field-border); background: #fff; border-radius: 10px; padding: 7px 9px; font: 600 12px var(--font-main); color: var(--text-primary); cursor: pointer; }
+.mlSmall.danger { color: #be123c; }
+.mlMain:focus-visible, .mlSmall:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 1px; }
 
 /* 시작 화면 */
 #gate { position: fixed; inset: 0; display: flex; justify-content: center; z-index: 10; padding: 18px 14px; overflow: auto; background: linear-gradient(150deg, #0b1030, #1a0b2e 55%, #2c1208); }
@@ -131,7 +146,9 @@ h3 { margin: 14px 0 8px; font-size: 14px; font-weight: 700; }
   .venueCards { grid-template-columns: 1fr; }
   .gateWrap h1 { font-size: 30px; }
   .exitBtn { padding: 0 12px; font-size: 13px; }
-  #hud { left: 8px; right: 8px; gap: 6px; }
+  #hud { left: 8px; right: 8px; gap: 6px; flex-wrap: wrap; }
+  #hudRight { margin-left: auto; }
+  #toast { top: 118px; }
   #steps li { padding: 4px; }
   #steps li span { display: none; }
   #steps li.on { padding-right: 11px; }

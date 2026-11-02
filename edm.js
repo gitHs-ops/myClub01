@@ -174,6 +174,7 @@ export class Edm {
 
   /* 곡을 바꾸면 박자를 이어 가도록 현재 시각에서 다시 센다 */
   setTrack(id) {
+    if (this.fileMode) this.stopFile();
     this.track = TRACKS.find((t) => t.id === id) || TRACKS[0];
     if (!this.started) { this.applyTrack(); return; }
     this.applyTrack();
@@ -201,7 +202,43 @@ export class Edm {
   }
 
   /* 현재 위치: beat는 연속값. 곡 구간과 흥을 함께 돌려준다 */
+  /* 내 음원 재생: 합성을 멈추고 같은 소리 길로 내보낸다. 줄 밖에서는 똑같이 먹먹하게 들린다 */
+  playFile(url, analysis) {
+    if (!this.fileEl) {
+      const el = this.fileEl = new Audio();
+      const src = this.ctx.createMediaElementSource(el), g = this.ctx.createGain();
+      g.gain.value = 0.9; src.connect(g); g.connect(this.music);
+      el.addEventListener('ended', () => this.onFileEnd?.());
+      el.addEventListener('error', () => { if (this.fileMode && el.getAttribute('src')) this.onFileError?.(); });
+    }
+    this.fileMode = true; this.analysis = analysis || null;
+    this.fileEl.src = url;
+    return this.fileEl.play();
+  }
+
+  stopFile() {
+    if (!this.fileMode) return;
+    this.fileMode = false; this.analysis = null;
+    this.fileEl.pause(); this.fileEl.removeAttribute('src'); this.fileEl.load();
+    this.applyTrack();
+    this.t0 = this.ctx.currentTime + 0.1; this.nextStep = 0;
+  }
+
+  togglePause() {
+    if (!this.fileMode) return false;
+    if (this.fileEl.paused) this.fileEl.play(); else this.fileEl.pause();
+    return !this.fileEl.paused;
+  }
+
+  fileClock() {
+    const a = this.analysis || { bpm: 120, offset: 0, bars: [] }, el = this.fileEl, spb = 60 / a.bpm;
+    const raw = Math.max(0, (el.currentTime - a.offset) / spb), bar = Math.floor(raw / 4), beat = raw / (a.bpm >= 150 ? 2 : 1), beatFrac = beat % 1;
+    const section = a.bars[bar] || { name: 'groove', barIn: bar % 8, bars: 8, energy: 0.6 };
+    return { track: null, beat, bar, section, beatFrac, energy: section.energy, build: 0, kick: el.paused || section.name === 'break' ? 0 : Math.exp(-beatFrac * 5) };
+  }
+
   clock() {
+    if (this.fileMode) return this.fileClock();
     if (!this.started) return { beat: performance.now() / 468, bar: 0, section: FORM[0], energy: 0.35, beatFrac: 0, kick: 0 };
     const raw = Math.max(0, (this.ctx.currentTime - this.t0) / this.spb), bar = Math.floor(raw / 4), beat = raw / (this.track.div || 1);
     const section = sectionAt(bar, this.form), beatFrac = beat % 1;
@@ -210,7 +247,7 @@ export class Edm {
   }
 
   schedule() {
-    if (this.ctx.state !== 'running') return;
+    if (this.ctx.state !== 'running' || this.fileMode) return;
     const ahead = document.hidden ? 1.6 : 0.22, end = this.ctx.currentTime + ahead;
     // 탭이 오래 멈췄다 돌아오면 밀린 음을 쏟지 않고 건너뛴다
     const now = Math.ceil((this.ctx.currentTime - this.t0) / this.spStep);
