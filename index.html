@@ -5,12 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="color-scheme" content="light">
 <meta name="theme-color" content="#eef2ff">
-<title>CLUB PULSE — 3D EDM 나이트클럽</title>
-<meta name="description" content="줄 서서 입장하고, 스탠딩 테이블에서 음료를 마시고, 메인 스테이지에서 함께 즐기는 3D EDM 클럽.">
+<title>오늘 밤 어디로 — CLUB PULSE · 7080 무대</title>
+<meta name="description" content="EDM 클럽과 7080 라이브 무대 중 골라 줄 서고, 입장하고, 음료를 마시고, 메인 스테이지에서 함께 즐기는 3D 공간.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%236366f1'/%3E%3Cpath d='M5 17h5l3-8 5 15 3-7h6' fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <link rel="stylesheet" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1">
+<link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
 <canvas id="scene" aria-label="클럽 3D 화면"></canvas>
@@ -25,6 +25,7 @@
   </ol>
   <div id="hudRight">
     <div class="glass chip" id="nowChip"><i id="beatDot"></i><span id="nowName"></span></div>
+    <button class="glass exitBtn" id="btnExit">나가기</button>
     <button class="glass iconBtn" id="btnSettings" title="설정" aria-label="설정">
       <svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
     </button>
@@ -40,19 +41,25 @@
 
 <!-- 시작 화면 -->
 <section id="gate">
-  <div class="glass card gateCard">
-    <p class="kicker">3D EDM NIGHTCLUB</p>
-    <h1>CLUB PULSE</h1>
-    <p class="lead">오늘 밤, 줄 끝에 서는 것부터 시작합니다.</p>
-    <ol class="flow">
-      <li><b>1</b>바깥에서 줄서기</li>
-      <li><b>2</b>입장하기</li>
-      <li><b>3</b>스탠딩 테이블에서 음료 마시기</li>
-      <li><b>4</b>EDM에 맞춰 건들거리기</li>
-      <li><b>5</b>메인 스테이지에서 어울리기</li>
-    </ol>
-    <button class="btn primary big" id="btnStart">소리 켜고 줄 서기</button>
-    <p class="note">소리가 납니다. 조명이 깜박이는 장면이 있으며, 설정에서 줄일 수 있습니다.</p>
+  <div class="gateWrap">
+    <p class="kicker">오늘 밤 어디로 갈까요</p>
+    <h1>줄 설 곳을 고르세요</h1>
+    <p class="lead">줄서기 → 입장 → 음료 → 건들거리기 → 메인 스테이지</p>
+    <div class="venueCards">
+      <article class="glass card venueCard edm">
+        <p class="vTag">EDM 나이트클럽</p>
+        <h2>CLUB PULSE</h2>
+        <p>DJ 부스, LED 월, 레이저. 드롭이 오면 다 같이 뜁니다.</p>
+        <button class="btn primary big" data-venue="club">클럽 줄 서기</button>
+      </article>
+      <article class="glass card venueCard retro">
+        <p class="vTag">7080 라이브 무대</p>
+        <h2>그때 그 노래</h2>
+        <p>밴드 연주, 미러볼, 체크 무늬 플로어. 후렴이 오면 함께 손을 듭니다.</p>
+        <button class="btn primary big" data-venue="live7080">7080 무대 줄 서기</button>
+      </article>
+    </div>
+    <p class="note">누르면 소리가 납니다. 조명이 깜박이는 장면이 있으며, 설정에서 줄일 수 있습니다.</p>
   </div>
 </section>
 
@@ -81,6 +88,18 @@
   </div>
 </div>
 
-<script type="module" src="app.js?v=1"></script>
+<!-- 나가기 확인 -->
+<div class="modalBack" id="exitModal" hidden>
+  <div class="glass card modal" role="dialog" aria-modal="true" aria-labelledby="exitTitle">
+    <button class="modalX" data-close aria-label="닫기"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <h2 id="exitTitle">나가시겠어요?</h2>
+    <p class="muted" id="exitText"></p>
+    <button class="btn primary big" id="btnExitYes">나가기</button>
+    <button class="btn wide" data-close>계속 있기</button>
+  </div>
+</div>
+<div id="fade"></div>
+
+<script type="module" src="app.js?v=3"></script>
 </body>
 </html>

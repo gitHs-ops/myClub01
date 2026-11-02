@@ -30,13 +30,18 @@ const G = {
 };
 const std = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.62, ...o });
 const SKINS = [0xf4cdb0, 0xe9b98f, 0xd6a077, 0xf8dcc6, 0xb9845c].map((c) => std(c, { roughness: 0.55 }));
-const HAIRS = [0x17120f, 0x2c1d14, 0x53321c, 0x9a6c3d, 0x6a1d8a, 0x1f6fb5, 0xd9d5cf].map((c) => std(c, { roughness: 0.48 }));
-const TOPS = [0xf43f5e, 0x22d3ee, 0xfacc15, 0xa855f7, 0xf8fafc, 0x10b981, 0x3b82f6, 0xfb7185, 0xf97316, 0x1e293b, 0xec4899].map((c) => std(c));
-const BOTTOMS = [0x111827, 0x1e3a5f, 0x374151, 0x4b5563, 0x1c1917, 0x3f2a56].map((c) => std(c, { roughness: 0.75 }));
+let HAIRS = [0x17120f, 0x2c1d14, 0x53321c, 0x9a6c3d, 0x6a1d8a, 0x1f6fb5, 0xd9d5cf].map((c) => std(c, { roughness: 0.48 }));
+let TOPS = [0xf43f5e, 0x22d3ee, 0xfacc15, 0xa855f7, 0xf8fafc, 0x10b981, 0x3b82f6, 0xfb7185, 0xf97316, 0x1e293b, 0xec4899].map((c) => std(c));
+let BOTTOMS = [0x111827, 0x1e3a5f, 0x374151, 0x4b5563, 0x1c1917, 0x3f2a56].map((c) => std(c, { roughness: 0.75 }));
 const SHOES = [0xf8fafc, 0x0f172a, 0xef4444, 0x06b6d4].map((c) => std(c, { roughness: 0.4 }));
 const M_EYE = std(0x161616, { roughness: 0.2 });
 const M_BLOB = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.38, depthWrite: false });
 const M_PHONES = std(0x0b0b0f, { roughness: 0.3, metalness: 0.5 });
+
+export function setWardrobe(w) {
+  if (!w) return;
+  TOPS = w.tops.map((c) => std(c)); BOTTOMS = w.bottoms.map((c) => std(c, { roughness: 0.75 })); HAIRS = w.hairs.map((c) => std(c, { roughness: 0.48 }));
+}
 
 const add = (geo, mat, x, y, z, parent) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); parent.add(m); return m; };
 
@@ -185,6 +190,9 @@ export function updatePerson(p, dt, t, clock, collide) {
       hipX = half * 0.15; hipY = -dip * 0.06; rollZ = -half * 0.1; twist = half * 0.26; nod = dip * 0.12;
       stepL = Math.max(0, half) * 0.14; stepR = Math.max(0, -half) * 0.14;
       const clap = -1.42 - dip * 0.14; armL = [clap, -0.12 + pulse * 0.2, -0.45, -0.95]; armR = [clap, -0.12 + pulse * 0.2, -0.45, -0.95];
+    } else if (S === 5) {  // 고고: 허리를 비틀고 팔꿈치를 접어 흔든다
+      twist = sway * 0.5; hipY = -0.05 - dip * 0.05; hipX = half * 0.06; nod = dip * 0.1;
+      armL = [-0.55 + sway * 0.4, 0.34, 0, -1.55]; armR = [-0.55 - sway * 0.4, 0.34, 0, -1.55];
     } else {               // 웨이브: 양팔을 흔든다
       hipX = sway * 0.08; rollZ = -sway * 0.09; hipY = -dip * 0.05; nod = dip * 0.1;
       armL = [-2.75 + sway * 0.24, 0.32 + sway * 0.14, 0, -0.32]; armR = [-2.75 - sway * 0.24, 0.32 - sway * 0.14, 0, -0.32];
@@ -217,6 +225,8 @@ export function updatePerson(p, dt, t, clock, collide) {
   // 하이파이브
   if (p.hifive > 0.01) armR = blend(armR, [-2.42, -0.06, 0, -0.24], p.hifive);
 
+  // 연주자: 악기마다 팔 자세가 정해져 있다
+  if (p.armPose) { const o = p.armPose(b, t); armL = o[0]; armR = o[1]; }
   setArm(p.arms[-1], armL[0], -armL[1], -armL[2], armL[3]);
   setArm(p.arms[1], armR[0], armR[1], armR[2], armR[3]);
   p.arms[-1].a.rotation.x = armL[0]; p.arms[1].a.rotation.x = armR[0];

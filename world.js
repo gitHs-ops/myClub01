@@ -37,22 +37,22 @@ function windowsTexture(cols, rows, lit = 0.34) {
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.magFilter = THREE.NearestFilter;
   return t;
 }
-function signTexture() {
+function signTexture(theme) {
   const c = document.createElement('canvas'); c.width = 1024; c.height = 280;
   const g = c.getContext('2d'); g.clearRect(0, 0, 1024, 280);
-  g.font = '800 190px Outfit, "Malgun Gothic", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.shadowColor = '#ff2bd6'; g.shadowBlur = 46; g.fillStyle = '#ffd6f6';
-  for (let i = 0; i < 3; i++) g.fillText('PULSE', 512, 144);
+  g.font = `800 ${theme.signSize}px Outfit, Pretendard, "Malgun Gothic", sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.shadowColor = theme.signGlow; g.shadowBlur = 46; g.fillStyle = theme.signFill;
+  for (let i = 0; i < 3; i++) g.fillText(theme.sign, 512, 144);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }
 
-export function buildWorld(scene, fxState) {
+export function buildWorld(scene, fxState, theme) {
   const gt = glowTexture(), bt = beamTexture(), updaters = [];
   const spriteMat = (color, opacity = 1) => new THREE.SpriteMaterial({ map: gt, color, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
   const flare = (color, size, x, y, z, parent = scene, opacity = 1) => { const s = new THREE.Sprite(spriteMat(color, opacity)); s.scale.set(size, size, 1); s.position.set(x, y, z); parent.add(s); return s; };
 
-  scene.add(new THREE.HemisphereLight(0x8fa7ff, 0x23153a, 0.82));
+  scene.add(new THREE.HemisphereLight(...theme.hemi));
 
   /* ───── 밤거리 ───── */
   const street = new THREE.Group(); scene.add(street);
@@ -77,12 +77,12 @@ export function buildWorld(scene, fxState) {
   [-1, 1].forEach((s) => box(30, 18, 0.5, new THREE.MeshBasicMaterial({ map: windowsTexture(40, 11, 0.24), toneMapped: false }), s * 48, 9, 9.8, street));
 
   // 간판, 차양, 레드카펫
-  const sign = add(new THREE.PlaneGeometry(7.2, 1.97), new THREE.MeshBasicMaterial({ map: signTexture(), transparent: true, toneMapped: false, depthWrite: false }), 0, 5.35, 10.3, street);
-  flare(0xff2bd6, 11, 0, 5.3, 10.5, street, 0.34);
+  const sign = add(new THREE.PlaneGeometry(7.2, 1.97), new THREE.MeshBasicMaterial({ map: signTexture(theme), transparent: true, toneMapped: false, depthWrite: false }), 0, 5.35, 10.3, street);
+  flare(theme.accent, 11, 0, 5.3, 10.5, street, 0.34);
   box(5.6, 0.14, 2.6, std(0x0d0d14, { roughness: 0.4 }), 0, 3.7, 11.45, street);
-  const canopyGlow = box(5.62, 0.05, 0.05, glow(0xff2bd6), 0, 3.62, 12.74, street);
+  const canopyGlow = box(5.62, 0.05, 0.05, glow(theme.accent), 0, 3.62, 12.74, street);
   box(2.6, 0.02, 5.4, std(0x7f1231, { roughness: 0.9 }), 0, 0.01, 12.9, street);
-  const doorLight = new THREE.PointLight(0xff5ad6, 20, 14, 1.6); doorLight.position.set(0, 3.3, 12); scene.add(doorLight);
+  const doorLight = new THREE.PointLight(theme.accent, 20, 14, 1.6); doorLight.position.set(0, 3.3, 12); scene.add(doorLight);
   const queueLight = new THREE.PointLight(0xffc27a, 30, 22, 1.5); queueLight.position.set(7.4, 4.4, 13); scene.add(queueLight);
 
   // 입구 문
@@ -131,12 +131,12 @@ export function buildWorld(scene, fxState) {
 
   /* ───── 입구 복도 ───── */
   const inside = new THREE.Group(); scene.add(inside);
-  const wallM = std(0x0d0c16, { roughness: 0.68 }), floorM = std(0x17151f, { roughness: 0.72, metalness: 0.08 });
+  const wallM = std(theme.wall, { roughness: 0.68 }), floorM = std(theme.floor, { roughness: 0.72, metalness: 0.08 });
   box(3.2, 0.1, 5.4, floorM, 0, -0.05, 7.4, inside);
   box(3.2, 0.1, 5.4, wallM, 0, 3.55, 7.4, inside);
   [-1, 1].forEach((s) => box(0.2, 3.6, 5.4, wallM, s * 1.7, 1.8, 7.4, inside));
   const stripA = [-1, 1].map((s) => box(0.05, 0.05, 5.2, glow(0x22d3ee), s * 1.58, 2.8, 7.4, inside));
-  const hallLight = new THREE.PointLight(0xff4bd8, 7, 9, 1.5); hallLight.position.set(0, 2.9, 7.2); scene.add(hallLight);
+  const hallLight = new THREE.PointLight(theme.accent, 7, 9, 1.5); hallLight.position.set(0, 2.9, 7.2); scene.add(hallLight);
 
   /* ───── 메인 플로어 ───── */
   box(30, 0.1, 30, floorM, 0, -0.05, -9.5, inside);
@@ -158,16 +158,76 @@ export function buildWorld(scene, fxState) {
   void stageEdge;
   box(0.45, 8, 0.45, stageM, -11.2, 4, -18, inside); box(0.45, 8, 0.45, stageM, 11.2, 4, -18, inside);
 
-  // DJ 부스
-  const deckM = std(0x14141d, { roughness: 0.3, metalness: 0.6 });
-  box(4.8, 1.08, 1.1, deckM, 0, 1.69, -19.6, inside);
-  const boothFace = box(4.8, 0.8, 0.03, glow(0xffffff), 0, 1.66, -19.03, inside); neonList.push(boothFace);
-  [-1.25, 1.25].forEach((x) => {
-    const p = add(new THREE.CylinderGeometry(0.3, 0.3, 0.04, 26), std(0x050507, { roughness: 0.2 }), x, 2.25, -19.6, inside);
-    updaters.push((dt) => { p.rotation.y += dt * 3.5; });
-    add(new THREE.BoxGeometry(0.03, 0.03, 0.24), glow(0x22d3ee), 0.12, 0.03, 0, p);
-  });
-  box(0.5, 0.06, 0.5, std(0x25252f), 0, 2.26, -19.6, inside);
+  if (!theme.band) {
+    // DJ 부스
+    const deckM = std(0x14141d, { roughness: 0.3, metalness: 0.6 });
+    box(4.8, 1.08, 1.1, deckM, 0, 1.69, -19.6, inside);
+    const boothFace = box(4.8, 0.8, 0.03, glow(0xffffff), 0, 1.66, -19.03, inside); neonList.push(boothFace);
+    [-1.25, 1.25].forEach((x) => {
+      const p = add(new THREE.CylinderGeometry(0.3, 0.3, 0.04, 26), std(0x050507, { roughness: 0.2 }), x, 2.25, -19.6, inside);
+      updaters.push((dt) => { p.rotation.y += dt * 3.5; });
+      add(new THREE.BoxGeometry(0.03, 0.03, 0.24), glow(0x22d3ee), 0.12, 0.03, 0, p);
+    });
+    box(0.5, 0.06, 0.5, std(0x25252f), 0, 2.26, -19.6, inside);
+  // 밴드 무대: 드럼, 앰프, 건반
+  } else {
+    const shell = std(0x9f1239, { roughness: 0.3, metalness: 0.3 }), skin2 = std(0xf1ece0, { roughness: 0.5 }), chrome = std(0xd6d3d1, { roughness: 0.2, metalness: 0.9 }), brass = std(0xc9a227, { roughness: 0.3, metalness: 0.8 });
+    box(4.4, 0.34, 3, std(0x2a1a12), 0, 1.32, -22, inside);   // 드럼 단
+    const kit = new THREE.Group(); kit.position.set(0, 1.49, -21.05); inside.add(kit);
+    const bd = add(new THREE.CylinderGeometry(0.34, 0.34, 0.34, 22), shell, 0, 0.34, 0, kit); bd.rotation.x = Math.PI / 2;
+    const bdf = add(new THREE.CircleGeometry(0.31, 22), skin2, 0, 0.34, 0.175, kit); void bdf;
+    [[-0.55, 0.52, 0.04, 0.19], [0.55, 0.52, 0.04, 0.19], [-0.22, 0.86, 0.1, 0.15], [0.22, 0.86, 0.1, 0.15]].forEach(([x, y, z, r]) => {
+      add(new THREE.CylinderGeometry(r, r, 0.17, 18), shell, x, y, z, kit);
+      add(new THREE.CylinderGeometry(r - 0.005, r - 0.005, 0.005, 18), skin2, x, y + 0.088, z, kit);
+    });
+    [[-0.95, 1.2], [0.95, 1.28], [-0.82, 0.88]].forEach(([x, y]) => {
+      add(new THREE.CylinderGeometry(0.012, 0.012, y, 6), chrome, x, y / 2, 0.1, kit);
+      const c = add(new THREE.CylinderGeometry(0.26, 0.26, 0.012, 22), brass, x, y, 0.1, kit); c.rotation.z = x < 0 ? 0.14 : -0.14;
+      updaters.push((dt, t, clock) => { c.rotation.x = Math.sin(clock.beat * Math.PI * 2) * 0.05; });
+    });
+    // 앰프
+    [[-5.2, -21.6], [5.2, -21.6], [-2.8, -21.8], [2.8, -21.8]].forEach(([x, z]) => {
+      box(1.2, 1.1, 0.5, std(0x1c1410, { roughness: 0.7 }), x, 1.7, z, inside);
+      box(1.02, 0.78, 0.02, std(0x3a2f26, { roughness: 0.95 }), x, 1.74, z + 0.26, inside);
+    });
+    // 건반
+    box(1.4, 0.07, 0.42, std(0x16120f), -5.7, 2.05, -19.25, inside);
+    box(1.3, 0.015, 0.16, std(0xf8f4e8), -5.7, 2.09, -19.12, inside);
+    [-0.5, 0.5].forEach((d) => add(new THREE.CylinderGeometry(0.02, 0.02, 0.9, 6), chrome, -5.7 + d, 1.6, -19.25, inside));
+    // 마이크 스탠드
+    add(new THREE.CylinderGeometry(0.012, 0.012, 1.45, 6), chrome, 0.32, 1.88, -18.05, inside);
+    add(new THREE.CylinderGeometry(0.16, 0.16, 0.02, 14), chrome, 0.32, 1.16, -18.05, inside);
+    // 무대 조명 줄
+    for (let x = -10; x <= 10; x += 2) { add(new THREE.SphereGeometry(0.1, 10, 8), glow(0xffd28a), x, 7.72, -17.6, inside); flare(0xffb35c, 1.2, x, 7.72, -17.4, inside, 0.6); }
+    // 미러볼
+    const ballC = document.createElement('canvas'); ballC.width = 256; ballC.height = 128;
+    const bg = ballC.getContext('2d');
+    for (let y = 0; y < 16; y++) for (let x = 0; x < 32; x++) { const v = 90 + Math.random() * 165 | 0; bg.fillStyle = `rgb(${v},${v},${v})`; bg.fillRect(x * 8, y * 8, 7, 7); }
+    const ballT = new THREE.CanvasTexture(ballC); ballT.magFilter = THREE.NearestFilter; ballT.colorSpace = THREE.SRGBColorSpace;
+    const ball = add(new THREE.SphereGeometry(0.62, 28, 18), new THREE.MeshBasicMaterial({ map: ballT, toneMapped: false }), 0, 6.1, -10.5, inside);
+    add(new THREE.CylinderGeometry(0.012, 0.012, 2, 6), chrome, 0, 7.1, -10.5, inside);
+    flare(0xfff1d6, 2.6, 0, 6.1, -10.5, inside, 0.45);
+    const DOTS = 150, dotDir = [], dotPos = new Float32Array(DOTS * 3);
+    for (let i = 0; i < DOTS; i++) { const y = Math.random() * 1.4 - 1, r = Math.sqrt(Math.max(0, 1 - Math.min(1, y * y))), a = Math.random() * 6.283; dotDir.push([Math.sin(a) * r, Math.max(-1, Math.min(1, y)), Math.cos(a) * r]); }
+    const dotG = new THREE.BufferGeometry(); dotG.setAttribute('position', new THREE.BufferAttribute(dotPos, 3));
+    const dots = new THREE.Points(dotG, new THREE.PointsMaterial({ map: gt, color: 0xfff0d0, size: 0.34, transparent: true, opacity: 0.85, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, fog: false }));
+    dots.frustumCulled = false; inside.add(dots);
+    let ballA = 0;
+    updaters.push((dt) => {
+      ballA += dt * 0.32; ball.rotation.y = ballA;
+      const c = Math.cos(ballA), s = Math.sin(ballA);
+      for (let i = 0; i < DOTS; i++) {
+        const [dx, dy, dz] = dotDir[i], x = dx * c + dz * s, z = -dx * s + dz * c;
+        // 빛이 벽과 바닥에 닿는 자리
+        let tHit = 1e9;
+        if (x > 0.001) tHit = Math.min(tHit, 13.9 / x); if (x < -0.001) tHit = Math.min(tHit, -13.9 / x);
+        if (z > 0.001) tHit = Math.min(tHit, 15.2 / z); if (z < -0.001) tHit = Math.min(tHit, -6.9 / z);
+        if (dy < -0.001) tHit = Math.min(tHit, -6.05 / dy); if (dy > 0.001) tHit = Math.min(tHit, 1.9 / dy);
+        dotPos[i * 3] = x * tHit; dotPos[i * 3 + 1] = 6.1 + dy * tHit; dotPos[i * 3 + 2] = -10.5 + z * tHit;
+      }
+      dotG.attributes.position.needsUpdate = true;
+    });
+  }
   // 스피커
   [-1, 1].forEach((s) => {
     for (let i = 0; i < 3; i++) {
@@ -181,7 +241,7 @@ export function buildWorld(scene, fxState) {
   const ledC = document.createElement('canvas'); ledC.width = 640; ledC.height = 240;
   const led = ledC.getContext('2d'), ledT = new THREE.CanvasTexture(ledC); ledT.colorSpace = THREE.SRGBColorSpace;
   add(new THREE.PlaneGeometry(21, 7.3), new THREE.MeshBasicMaterial({ map: ledT, toneMapped: false }), 0, 4.75, -24.2, inside);
-  flare(0x8b5cf6, 26, 0, 4.8, -23, inside, 0.2);
+  flare(theme.band ? 0xff7a2e : 0x8b5cf6, 26, 0, 4.8, -23, inside, theme.band ? 0.1 : 0.2);
 
   // LED 바닥
   const NX = 18, NZ = 12, tiles = new THREE.InstancedMesh(new THREE.BoxGeometry(0.96, 0.03, 0.96), new THREE.MeshBasicMaterial({ toneMapped: false }), NX * NZ);
@@ -282,11 +342,34 @@ export function buildWorld(scene, fxState) {
 
   /* ───── 매 프레임 ───── */
   let tick = 0, lastBar = -1, flash = 0, hueBase = 0;
-  const palette = { drop: [0.86, 0.5, 0.74], groove: [0.76, 0.56, 0.6], intro: [0.65, 0.72, 0.6], break: [0.58, 0.68, 0.76], build: [0.04, 0.92, 0.84] };
+  const palette = theme.palette;
   const c1 = new THREE.Color(), c2 = new THREE.Color();
   const scratch = new THREE.Color();
 
+  /* 7080 무대 뒤: 붉은 막과 전구 간판 */
+  function drawMarquee(clock) {
+    const W2 = ledC.width, H = ledC.height;
+    for (let x = 0; x < W2; x += 16) { led.fillStyle = (x / 16) % 2 ? '#4d0d12' : '#6b1218'; led.fillRect(x, 0, 16, H); }
+    const shade = led.createLinearGradient(0, 0, 0, H); shade.addColorStop(0, 'rgba(10,3,3,.55)'); shade.addColorStop(0.55, 'rgba(10,3,3,0)'); shade.addColorStop(1, 'rgba(10,3,3,.65)');
+    led.fillStyle = shade; led.fillRect(0, 0, W2, H);
+    led.fillStyle = '#1a0d08'; led.fillRect(150, 44, 340, 152);
+    const rate = clock.section.name === 'drop' ? 2 : 1, chase = Math.floor(clock.beat * 2 * rate);
+    const bulb = (x, y, i) => { const on = (i + chase) % 3 === 0; led.fillStyle = on ? '#ffe9a8' : '#6e4a20'; led.beginPath(); led.arc(x, y, on ? 5.5 : 4, 0, 7); led.fill(); };
+    let n = 0;
+    for (let x = 158; x <= 482; x += 18) { bulb(x, 52, n++); }
+    for (let y = 70; y <= 170; y += 18) { bulb(482, y, n++); }
+    for (let x = 482; x >= 158; x -= 18) { bulb(x, 188, n++); }
+    for (let y = 170; y >= 70; y -= 18) { bulb(158, y, n++); }
+    led.textAlign = 'center'; led.textBaseline = 'middle';
+    led.shadowColor = '#ff9d2e'; led.shadowBlur = 18; led.fillStyle = '#ffe9b8';
+    led.font = '800 78px Outfit, sans-serif'; led.fillText('7080', W2 / 2, 104);
+    led.font = '700 22px Pretendard, "Malgun Gothic", sans-serif'; led.fillText('그때 그 노래', W2 / 2, 155);
+    led.shadowBlur = 0;
+    ledT.needsUpdate = true;
+  }
+
   function drawLed(clock, freq) {
+    if (theme.band) { drawMarquee(clock); return; }
     const W2 = ledC.width, H = ledC.height, name = clock.section.name, e = clock.energy, pal = palette[name] || palette.groove;
     const h1 = (pal[0] + hueBase) % 1, h2 = (pal[1] + hueBase) % 1, css = (h, l) => `hsl(${h * 360} 90% ${l}%)`;
     led.fillStyle = '#04030a'; led.fillRect(0, 0, W2, H);
@@ -319,7 +402,7 @@ export function buildWorld(scene, fxState) {
   function update(dt, t, clock, edm, playerZ) {
     tick++;
     const outdoors = playerZ > 10.2, fx = fxState.full, name = clock.section.name, e = Math.min(1.1, clock.energy), pal = palette[name] || palette.groove;
-    if (clock.bar !== lastBar) { lastBar = clock.bar; if (clock.bar % 4 === 0) hueBase = (hueBase + 0.11) % 1; if (name === 'drop' && clock.section.barIn === 0 && !outdoors) fireDrop(); }
+    if (clock.bar !== lastBar) { lastBar = clock.bar; if (clock.bar % 4 === 0 && !theme.band) hueBase = (hueBase + 0.11) % 1; if (name === 'drop' && clock.section.barIn === 0 && !outdoors && !theme.band) fireDrop(); }
     if (clock.beatFrac < 0.12 && flash < 0.5) flash = name === 'drop' ? 1 : 0.5;
     flash *= Math.exp(-dt * 8);
 
@@ -354,11 +437,14 @@ export function buildWorld(scene, fxState) {
       for (let ix = 0; ix < NX; ix++) for (let iz = 0; iz < NZ; iz++) {
         const cx = ix - NX / 2 + 0.5, cz = iz - NZ / 2 + 0.5, dist = Math.hypot(cx, cz * 1.2);
         let v;
-        if (name === 'drop') { v = 0.18 + Math.max(0, Math.sin(dist * 0.9 - clock.beat * Math.PI * 2)) ** 3 * 0.86; }
+        if (theme.band) {   // 체크 무늬 디스코 플로어: 박자마다 칸이 번갈아 켜진다
+          const on = (ix + iz + step) % 2 === 0;
+          v = name === 'drop' ? (on ? 0.62 : 0.07) : name === 'break' ? 0.05 + (0.5 + 0.5 * Math.sin(ix * 0.7 + t)) * 0.16 : on ? 0.3 * (0.45 + clock.kick * 0.55) : 0.05;
+        } else if (name === 'drop') { v = 0.18 + Math.max(0, Math.sin(dist * 0.9 - clock.beat * Math.PI * 2)) ** 3 * 0.86; }
         else if (name === 'build') { v = (ix + iz + step) % 2 === 0 ? 0.08 + clock.build * 0.75 : 0.03; }
         else if (name === 'break') { v = 0.05 + (0.5 + 0.5 * Math.sin(ix * 0.7 + iz * 0.5 + t * 0.7)) * 0.17; }
         else { v = ((ix + iz * 3 + step) % 5 === 0 ? 0.32 * (0.35 + clock.kick * 0.65) : 0.035) + 0.022; }
-        scratch.setHSL((dist * 0.03 + h1) % 1, 0.95, 0.5).multiplyScalar(v * dim * 0.62);
+        scratch.setHSL((dist * (theme.band ? 0.005 : 0.03) + ((ix + iz) % 2 && theme.band ? h2 : h1)) % 1, 0.95, 0.5).multiplyScalar(v * dim * 0.62);
         tiles.setColorAt(ix * NZ + iz, scratch);
       }
       tiles.instanceColor.needsUpdate = true;
@@ -377,7 +463,7 @@ export function buildWorld(scene, fxState) {
     });
 
     // 레이저: 빌드 끝과 드롭에서만
-    const laserOn = fx && (name === 'drop' || (name === 'build' && clock.section.barIn >= clock.section.bars - 2));
+    const laserOn = fx && !theme.band && (name === 'drop' || (name === 'build' && clock.section.barIn >= clock.section.bars - 2));
     lasers.forEach(({ l, mat, i }) => {
       l.visible = laserOn; if (!laserOn) return;
       const ph = clock.beat * Math.PI * 0.25, spread = (i - 6.5) * 0.11;
@@ -392,9 +478,9 @@ export function buildWorld(scene, fxState) {
       p.intensity = (i < 3 ? 40 + e * 56 : 26) * (i < 3 ? 0.66 + clock.kick * 0.5 : 1);
       if (i < 3) { p.position.x += Math.sin(t * 0.9 + i * 2) * dt * 1.4; p.position.z += Math.cos(t * 0.7 + i) * dt * 1.2; }
     });
-    stageLight.color.setHSL(h2, 0.75, 0.7); stageLight.intensity = 32 + e * 44;
+    if (theme.band) { stageLight.color.set(0xffd7a0); stageLight.intensity = 62 + e * 26; } else { stageLight.color.setHSL(h2, 0.75, 0.7); stageLight.intensity = 32 + e * 44; }
     kickLight.color.setHSL(h3, 0.3, 0.86);
-    kickLight.intensity = fx ? (name === 'drop' ? 145 : 26) * flash : 0;
+    kickLight.intensity = fx && !theme.band ? (name === 'drop' ? 145 : 26) * flash : 0;
 
     hazes.forEach((h, i) => {
       h.s.material.color.setHSL(i % 2 ? h1 : h2, 0.8, 0.6);

@@ -3,25 +3,41 @@ const midi = (n) => 440 * 2 ** ((n - 69) / 12);
 
 export const TRACKS = [
   {
-    id: 'neon', name: 'Neon Rise', desc: '128 BPM · 프로그레시브 하우스', bpm: 128,
+    id: 'neon', venue: 'club', name: 'Neon Rise', desc: '128 BPM · 프로그레시브 하우스', bpm: 128,
     chords: [[57, 60, 64], [53, 57, 60], [48, 52, 55], [55, 59, 62]], bass: [33, 29, 36, 31],
     stab: [1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0],
     bassLine: [0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1],
     lead: [12, 16, 19, 24, 19, 16, 12, 16, 19, 24, 28, 24, 19, 16, 19, 24], wave: 'sawtooth',
   },
   {
-    id: 'deep', name: 'Deep Pulse', desc: '124 BPM · 테크 하우스', bpm: 124,
+    id: 'deep', venue: 'club', name: 'Deep Pulse', desc: '124 BPM · 테크 하우스', bpm: 124,
     chords: [[50, 53, 57], [50, 53, 57], [46, 50, 53], [48, 52, 55]], bass: [26, 26, 34, 36],
     stab: [0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0],
     bassLine: [0, 0, 1, 1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 1, 1, 1],
     lead: [12, 0, 15, 0, 12, 0, 19, 17, 12, 0, 15, 0, 22, 19, 17, 15], wave: 'square',
   },
   {
-    id: 'sky', name: 'Sky Drop', desc: '132 BPM · 빅룸', bpm: 132,
+    id: 'sky', venue: 'club', name: 'Sky Drop', desc: '132 BPM · 빅룸', bpm: 132,
     chords: [[53, 56, 60], [49, 53, 56], [56, 60, 63], [51, 55, 58]], bass: [29, 25, 32, 27],
     stab: [1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1],
     bassLine: [0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0],
     lead: [24, 24, 27, 24, 31, 24, 27, 24, 24, 24, 27, 24, 32, 31, 27, 24], wave: 'sawtooth',
+  },
+  /* 7080: 직접 지은 곡. melody는 코드 구성음 번호(0 쉼표, 1~6 위로 올라감), 2마디 32칸 */
+  {
+    id: 'gogo', venue: 'live7080', style: 'band', feel: 'gogo', name: '그 밤의 고고', desc: '124 BPM · 1970년대 고고', bpm: 124,
+    chords: [[60, 64, 67], [57, 60, 64], [53, 57, 60], [55, 59, 62]], bass: [36, 33, 29, 31],
+    melody: [4, 0, 5, 0, 6, 0, 5, 4, 0, 0, 3, 0, 4, 0, 0, 0, 3, 0, 4, 0, 5, 0, 4, 3, 2, 0, 3, 0, 1, 0, 0, 0],
+  },
+  {
+    id: 'folk', venue: 'live7080', style: 'band', feel: 'folk', name: '통기타 사랑방', desc: '92 BPM · 포크', bpm: 92,
+    chords: [[55, 59, 62], [50, 54, 57], [52, 55, 59], [48, 52, 55]], bass: [31, 26, 28, 36],
+    melody: [3, 0, 0, 4, 5, 0, 4, 0, 3, 0, 0, 2, 3, 0, 0, 0, 4, 0, 0, 5, 6, 0, 5, 0, 4, 0, 3, 0, 2, 0, 0, 0],
+  },
+  {
+    id: 'disco', venue: 'live7080', style: 'band', feel: 'disco', name: '토요일 밤 디스코', desc: '114 BPM · 1980년대 디스코', bpm: 114,
+    chords: [[57, 60, 64], [50, 53, 57], [55, 59, 62], [48, 52, 55]], bass: [33, 26, 31, 36],
+    melody: [6, 0, 5, 4, 0, 4, 5, 0, 6, 0, 4, 0, 3, 0, 0, 0, 5, 0, 4, 3, 0, 3, 4, 0, 5, 0, 3, 0, 2, 0, 0, 0],
   },
 ];
 
@@ -37,11 +53,23 @@ const FORM = [
   { name: 'build', bars: 4, energy: 0.55 },
   { name: 'drop', bars: 16, energy: 1 },
 ];
-const FORM_BARS = FORM.reduce((s, f) => s + f.bars, 0);
-const sectionAt = (bar) => {
-  let b = ((bar % FORM_BARS) + FORM_BARS) % FORM_BARS;
-  for (const f of FORM) { if (b < f.bars) return { ...f, barIn: b }; b -= f.bars; }
-  return { ...FORM[0], barIn: 0 };
+/* 밴드 곡: drop은 후렴, groove는 절, build는 후렴 앞, break는 연주 구간 */
+const FORM_BAND = [
+  { name: 'intro', bars: 4, energy: 0.35 },
+  { name: 'groove', bars: 8, energy: 0.55 },
+  { name: 'build', bars: 4, energy: 0.55 },
+  { name: 'drop', bars: 8, energy: 0.95 },
+  { name: 'groove', bars: 8, energy: 0.6 },
+  { name: 'build', bars: 4, energy: 0.55 },
+  { name: 'drop', bars: 8, energy: 0.95 },
+  { name: 'break', bars: 8, energy: 0.5 },
+  { name: 'drop', bars: 8, energy: 1 },
+];
+const sectionAt = (bar, form = FORM) => {
+  const total = form.reduce((s, f) => s + f.bars, 0);
+  let b = ((bar % total) + total) % total;
+  for (const f of form) { if (b < f.bars) return { ...f, barIn: b }; b -= f.bars; }
+  return { ...form[0], barIn: 0 };
 };
 
 export class Edm {
@@ -94,7 +122,7 @@ export class Edm {
     return b;
   }
 
-  applyTrack() { this.spb = 60 / this.track.bpm; this.spStep = this.spb / 4; if (this.echo) this.echo.delayTime.value = this.spb * 0.75; }
+  applyTrack() { this.form = this.track.style === 'band' ? FORM_BAND : FORM; if (this.duck && this.track.style === 'band') { this.duck.gain.cancelScheduledValues(0); this.duck.gain.value = 1; } this.spb = 60 / this.track.bpm; this.spStep = this.spb / 4; if (this.echo) this.echo.delayTime.value = this.spb * 0.75; }
 
   /* 곡을 바꾸면 박자를 이어 가도록 현재 시각에서 다시 센다 */
   setTrack(id) {
@@ -120,7 +148,7 @@ export class Edm {
   clock() {
     if (!this.started) return { beat: performance.now() / 468, bar: 0, section: FORM[0], energy: 0.35, beatFrac: 0, kick: 0 };
     const beat = Math.max(0, (this.ctx.currentTime - this.t0) / this.spb), bar = Math.floor(beat / 4);
-    const section = sectionAt(bar), beatFrac = beat % 1;
+    const section = sectionAt(bar, this.form), beatFrac = beat % 1;
     const inBuild = section.name === 'build' ? (section.barIn + (beat % 4) / 4) / section.bars : 0;
     return { beat, bar, section, beatFrac, energy: section.energy + inBuild * 0.35, build: inBuild, kick: section.name === 'break' ? 0 : Math.exp(-beatFrac * 5) };
   }
@@ -139,8 +167,90 @@ export class Edm {
     }
   }
 
+  /* 밴드: 드럼, 베이스, 기타, 건반, 관악 멜로디 */
+  playBand(step, t) {
+    const T = this.track, s16 = step % 16, bar = Math.floor(step / 16), sec = sectionAt(bar, this.form), name = sec.name, feel = T.feel;
+    const chord = T.chords[bar % T.chords.length], root = T.bass[bar % T.bass.length];
+    const drop = name === 'drop', intro = name === 'intro', brk = name === 'break', build = name === 'build', folk = feel === 'folk', disco = feel === 'disco';
+    const lastBar = sec.barIn === sec.bars - 1, fill = lastBar && s16 >= 12 && !intro;
+    if (s16 === 0) this.synthFilter.frequency.setTargetAtTime(drop ? 4200 : 2600, t, 0.2);
+
+    // 드럼
+    if (!(folk && intro)) {
+      const kickOn = disco ? s16 % 4 === 0 : folk ? s16 === 0 || s16 === 10 : s16 === 0 || s16 === 6 || s16 === 8;
+      if (kickOn && !fill) this.kick(t, folk ? 0.5 : 0.78);
+      if ((s16 === 4 || s16 === 12) && !intro && !fill) this.snare(t, folk ? 0.14 : 0.3);
+      if (s16 % 2 === 0 && !fill) this.hat(t, folk ? 0.07 : 0.13, 0.05);
+      if (disco && s16 % 4 === 2 && !intro) this.hat(t, 0.2, 0.2);
+      if (fill && s16 % (folk ? 2 : 1) === 0) this.tom(t, 210 - (s16 - 12) * 26, folk ? 0.26 : 0.44);
+      if (drop && sec.barIn === 0 && s16 === 0) { const c = this.noise(t, 1.2, 'highpass', 5200, 0.2); c.connect(this.verb); this.cheer(0.09, t); }
+    }
+    // 베이스
+    if (!intro || folk) {
+      const line = disco ? { 0: 0, 2: 12, 4: 0, 6: 12, 8: 0, 10: 12, 12: 0, 14: 12 } : folk ? { 0: 0, 8: 7 } : { 0: 0, 4: 7, 6: 9, 8: 12, 12: 7, 14: 4 };
+      if (line[s16] !== undefined) this.bandBass(t, midi(root + 12 + line[s16]), folk ? 0.22 : 0.27);
+    }
+    // 기타
+    if (folk) {
+      if ([0, 4, 6, 10, 12, 14].includes(s16)) this.strum(t, chord, s16 % 4 === 0 ? 0.075 : 0.05, s16 === 6 || s16 === 10 || s16 === 14);
+    } else if (s16 % 4 === 2) this.chop(t, chord, disco ? 0.05 : 0.07);
+    else if (disco && s16 % 2 === 1 && !intro) this.chop(t, chord, 0.022);
+    // 건반과 현악
+    if (s16 === 0 && !intro && !build) this.pad(t, chord.map((n) => n + (folk ? 0 : 12)), this.spb * 3.9, drop ? 0.034 : 0.018);
+    if (disco && drop && (s16 === 3 || s16 === 11)) this.stab(t, chord.map((n) => n + 12), 0.04);
+    if (build) { if (s16 % (sec.barIn >= 2 ? 2 : 4) === 0) this.snare(t, 0.06 + (sec.barIn + s16 / 16) * 0.05); }
+    // 관악 멜로디: 절은 낮게, 후렴과 연주 구간은 높게
+    if (!intro && !build) {
+      const n = T.melody[(step % 32)];
+      if (n) {
+        const up = Math.floor((n - 1) / 3), note = chord[(n - 1) % 3] + 12 * up + (drop || brk ? 12 : 0);
+        this.horn(t, midi(note), drop || brk ? 0.075 : 0.055);
+      }
+    }
+  }
+
+  snare(t, v) {
+    this.noise(t, 0.14, 'bandpass', 2100, v, 0.8).connect(this.verb);
+    const { ctx } = this, o = ctx.createOscillator(), g = ctx.createGain();
+    o.frequency.setValueAtTime(205, t); o.frequency.exponentialRampToValueAtTime(140, t + 0.08);
+    g.gain.setValueAtTime(v * 0.7, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+    o.connect(g); g.connect(this.music); o.start(t); o.stop(t + 0.12);
+  }
+
+  tom(t, f, v) {
+    const { ctx } = this, o = ctx.createOscillator(), g = ctx.createGain();
+    o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f * 0.62, t + 0.16);
+    g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+    o.connect(g); g.connect(this.music); g.connect(this.verb); o.start(t); o.stop(t + 0.22);
+  }
+
+  bandBass(t, f, v) {
+    const { ctx } = this, o = ctx.createOscillator(), lp = ctx.createBiquadFilter(), g = ctx.createGain(), dur = this.spStep * 1.8;
+    o.type = 'triangle'; o.frequency.value = f; lp.type = 'lowpass'; lp.frequency.value = 900;
+    this.env(g, t, 0.006, v, dur);
+    o.connect(lp); lp.connect(g); g.connect(this.music); o.start(t); o.stop(t + dur + 0.05);
+  }
+
+  strum(t, chord, v, upward) {
+    const notes = [chord[0] - 12, chord[2] - 12, chord[0], chord[1], chord[2], chord[0] + 12];
+    (upward ? [...notes].reverse().slice(0, 4) : notes).forEach((n, i) => {
+      const g = this.voice(t + i * 0.012, midi(n), this.spStep * 2.6, v, 'triangle', [0, 3], this.synthFilter);
+      g.connect(this.verb);
+    });
+  }
+
+  chop(t, chord, v) {
+    for (const n of chord) { const g = this.voice(t, midi(n + 12), 0.07, v, 'sawtooth', [0], this.synthFilter); void g; }
+  }
+
+  horn(t, f, v) {
+    const g = this.voice(t, f, this.spStep * 2.4, v, 'sawtooth', [-4, 5], this.synthFilter);
+    g.connect(this.echo); g.connect(this.verb);
+  }
+
   playStep(step, t) {
-    const T = this.track, s16 = step % 16, bar = Math.floor(step / 16), sec = sectionAt(bar), name = sec.name;
+    if (this.track.style === 'band') { this.playBand(step, t); return; }
+    const T = this.track, s16 = step % 16, bar = Math.floor(step / 16), sec = sectionAt(bar, this.form), name = sec.name;
     const chordI = Math.floor(bar / 2) % T.chords.length, chord = T.chords[chordI], root = T.bass[chordI];
     const lastBarOfBuild = name === 'build' && sec.barIn === sec.bars - 1;
     const drop = name === 'drop', groove = name === 'groove', intro = name === 'intro', brk = name === 'break', build = name === 'build';

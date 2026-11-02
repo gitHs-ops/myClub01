@@ -1,7 +1,8 @@
 import * as THREE from './vendor/three.min.js';
-import { Edm, TRACKS } from './edm.js?v=1';
-import { makePerson, updatePerson, goTo, say, jump } from './people.js?v=1';
-import { buildWorld, ROOM, FLOOR, TABLES, BAR_SPOTS } from './world.js?v=1';
+import { Edm, TRACKS } from './edm.js?v=3';
+import { makePerson, updatePerson, goTo, say, jump, setWardrobe } from './people.js?v=3';
+import { buildWorld, ROOM, FLOOR, TABLES, BAR_SPOTS } from './world.js?v=3';
+import { VENUES } from './venues.js?v=1';
 
 const $ = (id) => document.getElementById(id);
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
@@ -13,9 +14,26 @@ const later = (sec, f) => setTimeout(f, sec * 1000);
 
 /* ───── 설정 ───── */
 const KEY = 'clubpulse.v1';
-const settings = Object.assign({ volume: 80, track: 'neon', lowFx: matchMedia('(prefers-reduced-motion: reduce)').matches }, (() => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } })());
+const settings = Object.assign({ volume: 80, tracks: { club: 'neon', live7080: 'gogo' }, lowFx: matchMedia('(prefers-reduced-motion: reduce)').matches }, (() => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } })());
 const saveSettings = () => { try { localStorage.setItem(KEY, JSON.stringify(settings)); } catch { /* 사생활 모드 */ } };
 const fxState = { full: !settings.lowFx };
+
+/* ───── 어느 줄에 설까: 소리는 누른 순간에 시작해야 한다 ───── */
+const edm = new Edm();
+edm.setVolume(settings.volume / 100);
+const venue = await new Promise((resolve) => {
+  document.querySelectorAll('[data-venue]').forEach((b) => {
+    b.onclick = () => {
+      const v = VENUES[b.dataset.venue], want = settings.tracks[v.id];
+      edm.track = TRACKS.find((t) => t.id === want && t.venue === v.id) || TRACKS.find((t) => t.venue === v.id);
+      edm.applyTrack();
+      edm.start();
+      resolve(v);
+    };
+  });
+});
+document.title = venue.title;
+setWardrobe(venue.wardrobe);
 
 /* ───── 렌더러 ───── */
 const canvas = $('scene');
@@ -27,16 +45,12 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.2;
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x070a18);
-scene.fog = new THREE.FogExp2(0x0a0716, 0.012);
+scene.fog = new THREE.FogExp2(venue.fog, 0.012);
 const camera = new THREE.PerspectiveCamera(52, 1, 0.1, 260);
 const resize = () => { renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; camera.fov = camera.aspect < 1 ? 68 : 52; camera.updateProjectionMatrix(); };
 addEventListener('resize', resize); resize();
 
-const edm = new Edm();
-edm.setVolume(settings.volume / 100);
-edm.track = TRACKS.find((t) => t.id === settings.track) || TRACKS[0];
-edm.applyTrack();
-const world = buildWorld(scene, fxState);
+const world = buildWorld(scene, fxState, venue);
 
 /* ───── 사람들 ───── */
 const everyone = [];
@@ -61,8 +75,32 @@ dest.rotation.x = -Math.PI / 2; dest.position.y = 0.045; dest.visible = false; s
 
 const bouncer = spawn({ style: 0, top: new THREE.MeshStandardMaterial({ color: 0x0b0b10, roughness: 0.6 }), bottom: new THREE.MeshStandardMaterial({ color: 0x0b0b10, roughness: 0.6 }), skirt: false, height: 1.1 });
 place(bouncer, -1.75, 11.15, 0.8); bouncer.crossTo = 1; bouncer.isStaff = true;
-const dj = spawn({ phones: true, style: 4, skirt: false, height: 1 });
-place(dj, 0, -20.45, 0); dj.isStaff = true; dj.y0 = 1.15;
+const performers = [];
+const STAGE_Y = 1.15;
+function performer(look, x, z, armPose, y0 = STAGE_Y) {
+  const p = spawn({ skirt: false, ...look }); place(p, x, z, 0); p.isStaff = true; p.y0 = y0; p.armPose = armPose; performers.push(p);
+  return p;
+}
+if (!venue.band) {
+  performer({ phones: true, style: 4, height: 1 }, 0, -20.45, null);
+} else {
+  const wood = new THREE.MeshStandardMaterial({ color: 0xb4632a, roughness: 0.35 }), dark = new THREE.MeshStandardMaterial({ color: 0x20140c, roughness: 0.4 }), red = new THREE.MeshStandardMaterial({ color: 0x9f1239, roughness: 0.3 });
+  const guitar = (p, body) => {
+    const g = new THREE.Group(); g.position.set(0, 0.2, 0.15); g.rotation.z = 0.5;
+    const b = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.17, 0.07, 18), body); b.rotation.x = Math.PI / 2; b.position.x = 0.12; b.scale.set(1.25, 1, 1); g.add(b);
+    const n = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.04, 0.025), dark); n.position.x = -0.3; g.add(n);
+    const h = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.06, 0.025), dark); h.position.x = -0.61; g.add(h);
+    p.torso.add(g);
+  };
+  const strum = (b) => { const k = Math.sin(b * Math.PI * 2); return [[-1.02, 0.62, -0.1, -0.72], [-0.5 + k * 0.1, 0.24, -0.42, -1.42 + k * 0.28]]; };
+  const singer = performer({ style: 1, top: new THREE.MeshStandardMaterial({ color: 0xf5f0e1, roughness: 0.55 }), height: 1 }, 0, -18.45, (b) => { const k = Math.sin(b * Math.PI); return [[-1.3 + k * 0.35, 0.55, 0, -0.45], [-0.95, 0.28, -0.58, -2.05]]; });
+  const mic = new THREE.Mesh(new THREE.CapsuleGeometry(0.025, 0.1, 4, 8), dark); mic.position.set(0, -0.09, 0.02); singer.arms[1].h.add(mic);
+  singer.danceStyle = 0;
+  guitar(performer({ style: 0, height: 1 }, 3.3, -19.4, strum), wood);
+  guitar(performer({ style: 3, height: 1 }, -3.3, -19.4, strum), red);
+  performer({ style: 0, height: 1 }, -5.7, -18.75, (b, t) => [[-1.08, 0.16, -0.12, -0.55 + Math.sin(t * 9) * 0.1], [-1.08, 0.16, -0.12, -0.55 + Math.sin(t * 9 + 2) * 0.1]]);
+  performer({ style: 0, height: 1 }, 0, -21.85, (b) => { const k = Math.abs(Math.sin(b * Math.PI * 2)), l = Math.abs(Math.cos(b * Math.PI * 2)); return [[-1.15 - l * 0.42, 0.28, -0.28, -1.05], [-1.15 - k * 0.42, 0.28, -0.28, -1.05]]; }, 1.49);
+}
 [[12.75, -9], [12.75, -1.5]].forEach(([x, z]) => { const b = spawn({ top: new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.6 }), skirt: false }); place(b, x, z, -Math.PI / 2); b.isStaff = true; b.talkTo = 0.6; });
 
 /* 음료 */
@@ -79,13 +117,7 @@ function makeCup(color) {
   g.userData.fluid = fluid; scene.add(g);
   return g;
 }
-const DRINKS = [
-  { id: 'cola', name: '콜라', desc: '얼음 가득, 시원하게', color: 0x4a1d0c },
-  { id: 'lemon', name: '레몬에이드', desc: '새콤하게 톡 쏘는 맛', color: 0xfde047 },
-  { id: 'blue', name: '블루 소다', desc: '조명 아래서 빛나는 파란색', color: 0x22d3ee },
-  { id: 'ginger', name: '진저에일', desc: '생강 향이 살짝 매콤하게', color: 0xf59e0b },
-  { id: 'mojito', name: '무알코올 모히토', desc: '라임과 민트로 산뜻하게', color: 0x86efac },
-];
+const DRINKS = venue.drinks;
 
 const CROWD_FLOOR = lowEnd ? 15 : 24, CROWD_TABLE = lowEnd ? 6 : 10, CROWD_BAR = lowEnd ? 2 : 4;
 const npcs = [];
@@ -104,7 +136,7 @@ function freeFloorSpot() {
 const yawToStage = (x, z) => Math.atan2(-x * 0.32, -17 - z - 2);
 function setRole(p, role) {
   p.role = role; p.nextAct = now() + rand(2, 14);
-  if (role === 'floor') { p.danceTo = 1; p.danceStyle = Math.floor(Math.random() * 5); }
+  if (role === 'floor') { p.danceTo = 1; p.danceStyle = pick(venue.styles); }
 }
 function dancerAt(p, x, z) { place(p, x, z, yawToStage(x, z)); setRole(p, 'floor'); p.danceTo = 1; p.dance = 1; }
 
@@ -189,8 +221,8 @@ addEventListener('keyup', (e) => keys.delete(e.code));
 addEventListener('blur', () => keys.clear());
 
 /* ───── 화면 ───── */
-const modalOpen = () => !$('drinkModal').hidden || !$('settingsModal').hidden;
-const closeModals = () => { $('drinkModal').hidden = true; $('settingsModal').hidden = true; };
+const modalOpen = () => !$('drinkModal').hidden || !$('settingsModal').hidden || !$('exitModal').hidden;
+const closeModals = () => { $('drinkModal').hidden = true; $('settingsModal').hidden = true; $('exitModal').hidden = true; };
 document.querySelectorAll('[data-close]').forEach((b) => { b.onclick = closeModals; });
 document.querySelectorAll('.modalBack').forEach((m) => m.addEventListener('pointerdown', (e) => { if (e.target === m) closeModals(); }));
 let toastT;
@@ -249,7 +281,7 @@ function layQueue() {
 function npcEnters(p) {
   queue.shift(); queueBusy = true; p.free = true; p.danceTo = 0;
   goTo(p, 0.75, 11.4, () => {
-    p.yawTo = -1.4; p.showIdTo = 1; say(bouncer, pick(['신분증 부탁합니다', '신분증 보여 주세요']), 1.4);
+    p.yawTo = -1.4; p.showIdTo = 1; say(bouncer, `${venue.ticket} 부탁합니다`, 1.4);
     bouncer.crossTo = 0; bouncer.yawTo = 1.2;
     later(1.3, () => {
       p.showIdTo = 0; edm.stamp(); say(bouncer, '들어가세요', 1.2); world.setDoor(true); edm.door();
@@ -267,15 +299,15 @@ function npcEnters(p) {
 }
 function renderQueue() {
   const ahead = queue.indexOf(player);
-  caption(ahead > 0 ? `앞에 <b>${ahead}명</b> 남았습니다. 줄이 줄어들 때까지 기다리세요` : '곧 차례입니다', '문 너머로 베이스가 웅웅거립니다. 시점은 화면을 끌어 돌려 보세요');
+  caption(ahead > 0 ? `앞에 <b>${ahead}명</b> 남았습니다. 줄이 줄어들 때까지 기다리세요` : '곧 차례입니다', venue.queueHint);
   actions([
     { label: grooving ? '가만히 있기' : '줄 서서 건들거리기', on: grooving, fn: () => { grooving = !grooving; player.danceStyle = 0; player.groove = 0.4; renderUi(); } },
     { label: '앞사람에게 말 걸기', fn: () => {
       const i = queue.indexOf(player), o = queue[i - 1] || queue[i + 1];
       if (!o) return;
-      say(player, pick(['줄이 기네요', '오늘 라인업 어때요?', '여기 처음이에요']), 2.2);
+      say(player, pick(venue.myLine), 2.2);
       player.waveTo = 1; later(0.8, () => { player.waveTo = 0; });
-      later(1.1, () => { o.yawTo = Math.atan2(player.x - o.x, player.z - o.z); say(o, pick(['금방 줄어요!', '오늘 DJ 좋대요', '안에 들어가면 장난 아니에요']), 2.4); later(3, () => { o.yawTo = -Math.PI / 2; }); });
+      later(1.1, () => { o.yawTo = Math.atan2(player.x - o.x, player.z - o.z); say(o, pick(venue.replyLine), 2.4); later(3, () => { o.yawTo = -Math.PI / 2; }); });
     } },
   ]);
 }
@@ -284,7 +316,7 @@ function atDoor() {
   queue.shift();
   goTo(player, 0.75, 11.4, () => {
     player.yawTo = -1.3; bouncer.crossTo = 0; bouncer.yawTo = 1.2;
-    say(bouncer, '신분증 보여 주시겠어요?', 3.5);
+    say(bouncer, `${venue.ticket} 보여 주시겠어요?`, 3.5);
     phase = 'id'; renderUi();
   });
   camSet(0.5, 1.42, 5.4, 1.7); renderUi();
@@ -307,7 +339,7 @@ function enterClub() {
     edm.setRoom(1);
     goTo(player, 0, 5.4, () => {
       edm.setRoom(2); world.setDoor(false);
-      toast('베이스가 온몸으로 들어옵니다', 2.6);
+      toast(venue.enterToast, 2.6);
       goTo(player, 0, -0.8, () => {
         player.free = false; phase = 'room'; setStep(3); camSet(0, 1.42, 5.6, 1.6); renderUi();
       });
@@ -410,7 +442,7 @@ function goStage() {
     renderUi();
   });
 }
-const HELLOS = ['같이 춰요!', '이 곡 좋다!', '여기 처음이세요?', '드롭 기다려요!', '와, 잘 추네요!', '오늘 분위기 최고예요', '손 들어요!'];
+const HELLOS = venue.hellos;
 function mingle() {
   stopMingle();
   const near = npcs.filter((n) => n.role === 'floor' && !n.target && Math.hypot(n.x - player.x, n.z - player.z) < 7).sort((a, b) => Math.hypot(a.x - player.x, a.z - player.z) - Math.hypot(b.x - player.x, b.z - player.z)).slice(0, 5);
@@ -421,7 +453,7 @@ function mingle() {
     n.danceTo = 0; n.mingle = true;
     goTo(n, x, z, () => {
       n.yawTo = Math.atan2(player.x - n.x, player.z - n.z);
-      n.danceTo = 1; n.danceStyle = pick([0, 1, 3, 4]); n.groove = 1.1;
+      n.danceTo = 1; n.danceStyle = pick(venue.mingleStyles); n.groove = 1.1;
     });
     later(0.3 + i * 1.1, () => { if (n.mingle) say(n, HELLOS[(i + Math.floor(base * 10)) % HELLOS.length], 2.3); });
   });
@@ -445,7 +477,7 @@ function handsUp() {
 function doJump() { jump(player); mingling.forEach((n, i) => later(0.08 * i, () => jump(n))); }
 function highFive() {
   const pool = mingling.length ? mingling : npcs;
-  const near = pool.filter((n) => !n.target).map((n) => ({ n, d: Math.hypot(n.x - player.x, n.z - player.z) })).sort((a, b) => a.d - b.d)[0];
+  const near = pool.map((n) => ({ n, d: Math.hypot(n.x - player.x, n.z - player.z) })).sort((a, b) => a.d - b.d)[0];
   if (!near || near.d > 2.8) { toast('하이파이브할 사람이 가까이에 없습니다'); return; }
   const n = near.n;
   // 서로 손이 닿는 거리까지 다가선다
@@ -461,7 +493,7 @@ function highFive() {
 function renderUi() {
   if (phase === 'queue') return renderQueue();
   if (phase === 'door') { caption('차례가 왔습니다. 입구로 갑니다'); return actions([]); }
-  if (phase === 'id') { caption('경호원이 신분증을 확인합니다'); return actions([{ label: '신분증 보여 주기', primary: true, fn: showId }]); }
+  if (phase === 'id') { caption(`입구에서 ${venue.ticket}을 확인합니다`); return actions([{ label: `${venue.ticket} 보여 주기`, primary: true, fn: showId }]); }
   if (phase === 'stamping') { caption('확인 중입니다'); return actions([]); }
   if (phase === 'canEnter') { caption('문이 열립니다'); return actions([{ label: '입장하기', primary: true, fn: enterClub }]); }
   if (phase === 'entering') { caption('복도를 지나갑니다. 소리가 점점 커집니다'); return actions([]); }
@@ -499,7 +531,7 @@ function renderUi() {
   else if (step === 4 && !grooving) caption('음악에 몸을 맡겨 보세요', '건들거리기를 누르면 박자에 맞춰 흔듭니다');
   else if (step === 4) caption(grooveBeats < 8 ? `좋습니다. 그대로 리듬을 타세요` : '몸이 풀렸습니다. 메인 스테이지로 가 볼까요?');
   else if (step === 5 && onFloor() && !mingling.length) caption('어울리기를 누르면 주변 사람들이 모입니다');
-  else if (step === 5 && mingling.length) caption(`함께 ${mingling.length + 1}명이 어울리는 중입니다`, hi5 ? `하이파이브 ${hi5}회` : '드롭이 오면 다 같이 뜁니다');
+  else if (step === 5 && mingling.length) caption(`함께 ${mingling.length + 1}명이 어울리는 중입니다`, hi5 ? `하이파이브 ${hi5}회` : venue.chorusHint);
   else if (step === 5) caption('메인 스테이지로 가서 사람들과 어울려 보세요');
   else caption('');
 }
@@ -507,11 +539,11 @@ function renderUi() {
 /* 설정 */
 function drawTracks() {
   const box = $('trackList'); box.textContent = '';
-  TRACKS.forEach((t) => {
-    const b = document.createElement('button'); b.className = `listBtn${settings.track === t.id ? ' on' : ''}`;
+  TRACKS.filter((x) => x.venue === venue.id).forEach((t) => {
+    const b = document.createElement('button'); b.className = `listBtn${edm.track.id === t.id ? ' on' : ''}`;
     const s = document.createElement('span'); const st = document.createElement('strong'); st.textContent = t.name; const sm = document.createElement('small'); sm.textContent = t.desc; s.append(st, sm); b.append(s);
-    b.setAttribute('aria-pressed', String(settings.track === t.id));
-    b.onclick = () => { settings.track = t.id; saveSettings(); edm.setTrack(t.id); $('nowName').textContent = t.name; drawTracks(); };
+    b.setAttribute('aria-pressed', String(edm.track.id === t.id));
+    b.onclick = () => { settings.tracks[venue.id] = t.id; saveSettings(); edm.setTrack(t.id); $('nowName').textContent = t.name; drawTracks(); };
     box.append(b);
   });
 }
@@ -519,12 +551,16 @@ $('btnSettings').onclick = () => { drawTracks(); $('volume').value = settings.vo
 $('volume').oninput = (e) => { settings.volume = +e.target.value; edm.setVolume(settings.volume / 100); saveSettings(); };
 $('lowFx').onchange = (e) => { settings.lowFx = e.target.checked; fxState.full = !settings.lowFx; saveSettings(); };
 
-$('btnStart').onclick = () => {
-  edm.start(); edm.setRoom(0);
-  $('gate').hidden = true; $('hud').hidden = false; $('bottom').hidden = false;
-  $('nowName').textContent = edm.track.name;
-  phase = 'queue'; setupQueue(); setStep(1); renderUi();
-  camSet(0.82, 1.46, 8.2, 2);
+/* 나가기: 확인 뒤 화면을 어둡게 하고 줄 고르는 처음 화면으로 돌아간다 */
+$('btnExit').onclick = () => {
+  $('exitText').textContent = phase === 'queue' || phase === 'door' || phase === 'id' || phase === 'stamping' || phase === 'canEnter' ? '줄에서 빠져나와 처음 화면으로 돌아갑니다.' : '문밖으로 나가 처음 화면으로 돌아갑니다. 다시 들어오려면 줄을 새로 섭니다.';
+  $('exitModal').hidden = false;
+};
+$('btnExitYes').onclick = () => {
+  closeModals(); $('bottom').hidden = true; $('hud').hidden = true;
+  edm.setVolume(0);
+  $('fade').classList.add('on');
+  later(0.9, () => location.reload());
 };
 
 /* ───── NPC 행동 ───── */
@@ -534,16 +570,16 @@ function npcTick(n, t, clock) {
   if (t < n.nextAct || n.target) return;
   n.nextAct = t + rand(8, 22);
   if (n.role === 'floor') {
-    if (Math.random() < 0.3) n.danceStyle = Math.floor(Math.random() * 5);
+    if (Math.random() < 0.3) n.danceStyle = pick(venue.styles);
     const d = Math.hypot(n.x - player.x, n.z - player.z);
-    if (d > 2 && d < 7 && Math.random() < 0.08) say(n, pick(['이 곡 좋다!', '와아!', '소리 질러!']), 1.6);
+    if (d > 2 && d < 7 && Math.random() < 0.08) say(n, pick(venue.cheers), 1.6);
     if (!n.mingle && Math.random() < 0.14) {
       const [x, z] = freeFloorSpot();
       goTo(n, x, z, () => { n.yawTo = yawToStage(n.x, n.z); n.danceTo = 1; });
     }
   } else if (n.cup) {
     n.sipTo = 1; later(1.5, () => { n.sipTo = 0; });
-    if (Math.random() < 0.3) say(n, pick(['한 잔 더 할까요?', '이 곡 뭐예요?', '조금만 쉬었다 가요']), 2);
+    if (Math.random() < 0.3) say(n, pick(venue.tableTalk), 2);
   }
 }
 let dropSeen = -1;
@@ -551,16 +587,17 @@ function crowdBeat(clock) {
   // 드롭 첫 박: 플로어 전체가 뛰고 손을 든다
   if (clock.section.name === 'drop' && clock.section.barIn === 0 && clock.bar !== dropSeen) {
     dropSeen = clock.bar;
-    if (phase === 'room' && player.z < 4) toast('드롭!', 1.4);
+    if (phase === 'room' && player.z < 4) toast(venue.dropToast, 1.4);
     npcs.filter((n) => n.role === 'floor').forEach((n, i) => {
-      if (Math.random() < 0.8) later(i * 0.012, () => jump(n));
+      if (venue.jumps && Math.random() < 0.8) later(i * 0.012, () => jump(n));
+      if (!venue.jumps && Math.random() > 0.55) return;
       n.upTo = 1; later(rand(2.2, 5), () => { n.upTo = 0; });
     });
     edm.cheer(0.14);
   }
   // 드롭 중 박자마다 일부가 뛴다
   const b = Math.floor(clock.beat);
-  if (clock.section.name === 'drop' && b !== crowdBeat.last) {
+  if (venue.jumps && clock.section.name === 'drop' && b !== crowdBeat.last) {
     crowdBeat.last = b;
     for (let i = 0; i < 4; i++) { const n = pick(npcs); if (n.role === 'floor' && !n.target) jump(n); }
     if (mingling.length && b % 4 === 0) jump(pick(mingling));
@@ -602,7 +639,7 @@ function frame(nowMs) {
     for (const p of queue) {
       if (p === player) continue;
       p.lineChat -= dt;
-      if (p.lineChat < 0) { p.lineChat = rand(5, 13); if (Math.random() < 0.6) say(p, pick(['오늘 사람 많네', '언제 들어가지', '이 베이스 들려요?', '오늘 라인업 좋아요']), 2); }
+      if (p.lineChat < 0) { p.lineChat = rand(5, 13); if (Math.random() < 0.6) say(p, pick(venue.lineTalk), 2); }
     }
     if (uiT++ % 20 === 0) renderUi();
   }
@@ -612,7 +649,7 @@ function frame(nowMs) {
     if (!p.isPlayer && !p.isStaff && p.role) npcTick(p, t, clock);
     updatePerson(p, dt, t, clock, collide);
     if (p.y0) { p.root.position.y = p.y0 + p.y; }
-    if (p === dj) { p.danceTo = 1; p.danceStyle = clock.section.name === 'drop' ? 4 : 1; p.groove = 0.8; p.upTo = clock.section.name === 'build' && clock.section.barIn >= 2 ? 1 : 0; }
+    if (p.armPose !== undefined && performers.includes(p)) { p.danceTo = 1; p.danceStyle = !venue.band && clock.section.name === 'drop' ? 4 : venue.stageStyle; p.groove = venue.band ? 0.55 : 0.8; p.upTo = !venue.band && clock.section.name === 'build' && clock.section.barIn >= 2 ? 1 : 0; }
     // 말풍선은 벽 너머나 먼 곳이면 보이지 않는다
     if (p.bubble.visible) {
       const sameSide = p === player || (p.z > 4.9) === (player.z > 4.9);
@@ -660,7 +697,7 @@ function frame(nowMs) {
   cam.theta = damp(cam.theta, cam.thetaTo, 4, dt); cam.phi = damp(cam.phi, cam.phiTo, 4, dt); cam.dist = damp(cam.dist, cam.distTo, 4, dt);
   cam.x = damp(cam.x, player.x, 6, dt); cam.y = damp(cam.y, cam.lookY, 3, dt); cam.z = damp(cam.z, player.z, 6, dt);
   // 드롭에서 살짝 울린다
-  const shake = fxState.full && clock.section.name === 'drop' ? clock.kick * 0.022 : 0;
+  const shake = venue.shake && fxState.full && clock.section.name === 'drop' ? clock.kick * 0.022 : 0;
   tmpTarget.set(cam.x, cam.y + shake, cam.z);
   const sinP = Math.sin(cam.phi);
   const ox = Math.sin(cam.theta) * sinP * cam.dist, oz = Math.cos(cam.theta) * sinP * cam.dist, oy = Math.cos(cam.phi) * cam.dist;
@@ -686,6 +723,13 @@ place(player, LINE_X(5), LINE_Z, -Math.PI / 2);
 cam.x = player.x; cam.z = player.z;
 renderer.compile(scene, camera);
 requestAnimationFrame(frame);
+
+/* 시작 */
+edm.setRoom(0);
+$('gate').hidden = true; $('hud').hidden = false; $('bottom').hidden = false;
+$('nowName').textContent = edm.track.name;
+phase = 'queue'; setupQueue(); setStep(1); renderUi();
+camSet(0.82, 1.46, 8.2, 2);
 
 // 시험용 접근점
 window.club = { edm, player, npcs, renderer, state: () => ({ phase, step, grooving, grooveBeats, hi5, mingling: mingling.length, sips: myDrink.sips, x: player.x, z: player.z, queue: queue.indexOf(player) }), clockNow: () => edm.clock() };
