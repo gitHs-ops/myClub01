@@ -47,6 +47,138 @@ function signTexture(theme) {
   return t;
 }
 
+/* 뒷벽: 입구 양쪽을 무대 분위기에 맞게 꾸민다. 벽에 붙는 것만 두어 동선은 그대로다 */
+const canvasOf = (w, h, draw) => {
+  const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  return t;
+};
+const litPlane = (map, glowing = 0.5) => new THREE.MeshStandardMaterial({ map, roughness: 0.85, emissive: 0xffffff, emissiveMap: map, emissiveIntensity: glowing });
+const neonText = (text, font, color = '#ffffff', shadow = '#ffffff') => new THREE.MeshBasicMaterial({
+  transparent: true, depthWrite: false, toneMapped: false,
+  map: canvasOf(1024, 256, (g, W, H) => {
+    g.font = font; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = color; g.shadowColor = shadow; g.shadowBlur = 30;
+    for (let i = 0; i < 3; i++) g.fillText(text, W / 2, H / 2 + 6);
+  }),
+});
+
+function buildBackWall(inside, theme, neonList, updaters, flare) {
+  const W = 12.15, H = 8.2;
+  const sides = [7.925, -7.925].map((x) => { const g = new THREE.Group(); g.position.set(x, 0, 4.885); g.rotation.y = Math.PI; inside.add(g); return g; });
+  const label = (g, mat, w, h, x, y, z = 0.02) => add(new THREE.PlaneGeometry(w, h), mat, x, y, z, g);
+
+  // 입구 틀
+  const trim = std(theme.band ? 0x3a2212 : 0x15151f, { roughness: 0.45, metalness: theme.band ? 0.1 : 0.6 });
+  [-1, 1].forEach((s) => box(0.2, 3.72, 0.16, trim, s * 1.85, 1.86, 4.84, inside));
+  box(3.9, 0.2, 0.16, trim, 0, 3.72, 4.84, inside);
+  const exit = label(inside, neonText(theme.band ? '나가는 곳' : 'EXIT', theme.band ? '800 130px Pretendard, "Malgun Gothic", sans-serif' : '800 170px Outfit, sans-serif', theme.band ? '#ffe9b8' : '#b6ffd8', theme.band ? '#ff9d2e' : '#22ff88'), 2.4, 0.6, 0, 4.25, 4.87);
+  exit.rotation.y = Math.PI;
+
+  if (theme.band) {
+    // 벽지: 70년대 둥근 무늬
+    const paper = canvasOf(1536, 1024, (g, cw, ch) => {
+      g.fillStyle = '#4a2413'; g.fillRect(0, 0, cw, ch);
+      const s = 96;
+      for (let y = 0; y < ch + s; y += s) for (let x = 0; x < cw + s; x += s) {
+        const ox = (y / s) % 2 ? s / 2 : 0;
+        g.strokeStyle = '#6b3a1b'; g.lineWidth = 10; g.beginPath(); g.arc(x + ox, y, 34, 0, 7); g.stroke();
+        g.strokeStyle = '#8a5222'; g.lineWidth = 4; g.beginPath(); g.arc(x + ox, y, 18, 0, 7); g.stroke();
+        g.fillStyle = '#a8662a'; g.beginPath(); g.arc(x + ox, y, 5, 0, 7); g.fill();
+      }
+      const shade = g.createLinearGradient(0, 0, 0, ch); shade.addColorStop(0, 'rgba(15,6,3,.82)'); shade.addColorStop(0.3, 'rgba(15,6,3,.28)'); shade.addColorStop(1, 'rgba(15,6,3,.1)');
+      g.fillStyle = shade; g.fillRect(0, 0, cw, ch);
+    });
+    const planks = canvasOf(1024, 128, (g, cw, ch) => {
+      for (let x = 0; x < cw; x += 64) { g.fillStyle = ['#5c3216', '#663818', '#532c13'][(x / 64) % 3]; g.fillRect(x, 0, 62, ch); g.fillStyle = '#2a1508'; g.fillRect(x + 62, 0, 2, ch); }
+    });
+    const rail = std(0x2e180b, { roughness: 0.5 }), brass = glow(0xffc77a);
+    const posterArt = (title, sub, bg, fg) => litPlane(canvasOf(360, 512, (g, cw, ch) => {
+      g.fillStyle = bg; g.fillRect(0, 0, cw, ch);
+      g.fillStyle = fg; g.globalAlpha = 0.28; g.beginPath(); g.arc(cw / 2, 190, 118, 0, 7); g.fill(); g.globalAlpha = 1;
+      g.strokeStyle = fg; g.lineWidth = 6; g.strokeRect(16, 16, cw - 32, ch - 32);
+      g.fillStyle = fg; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.font = '800 52px Pretendard, "Malgun Gothic", sans-serif'; g.fillText(title, cw / 2, 345);
+      g.font = '600 26px Pretendard, "Malgun Gothic", sans-serif'; g.fillText(sub, cw / 2, 415);
+    }), 0.8);
+    const record = (label) => litPlane(canvasOf(256, 256, (g) => {
+      g.fillStyle = '#e8dcc0'; g.fillRect(0, 0, 256, 256);
+      g.fillStyle = '#111013'; g.beginPath(); g.arc(128, 128, 112, 0, 7); g.fill();
+      g.strokeStyle = '#2b2a30'; g.lineWidth = 2; for (let r = 46; r < 110; r += 7) { g.beginPath(); g.arc(128, 128, r, 0, 7); g.stroke(); }
+      g.fillStyle = label; g.beginPath(); g.arc(128, 128, 38, 0, 7); g.fill();
+      g.fillStyle = '#e8dcc0'; g.beginPath(); g.arc(128, 128, 5, 0, 7); g.fill();
+    }), 0.8);
+    const framed = (g, mat, w, h, x, y) => { box(w + 0.16, h + 0.16, 0.07, rail, x, y, 0.04, g); label(g, mat, w, h, x, y, 0.08); };
+    const sconce = (g, x, y) => {
+      box(0.09, 0.28, 0.06, rail, x, y, 0.03, g);
+      add(new THREE.SphereGeometry(0.09, 12, 10), brass, x, y + 0.1, 0.14, g);
+      const w0 = new THREE.Vector3(); g.localToWorld(w0.set(x, y + 0.1, 0.16));
+      flare(0xffb35c, 2.4, w0.x, w0.y, w0.z, inside, 0.42);
+    };
+    sides.forEach((g, i) => {
+      label(g, litPlane(paper, 0.5), W, H, 0, H / 2);
+      box(W, 1.3, 0.07, litPlane(planks, 0.42), 0, 0.65, 0.04, g);
+      box(W, 0.07, 0.12, rail, 0, 1.33, 0.06, g);
+      box(W, 0.12, 0.1, rail, 0, 0.06, 0.06, g);
+      if (i === 0) {   // 바 쪽
+        framed(g, posterArt('통기타의 밤', '금요일 저녁 일곱 시', '#7f1d1d', '#fde8c8'), 1.25, 1.78, -1.75, 2.75);
+        framed(g, posterArt('고고 파티', '오늘은 밤새도록', '#1e3a5f', '#ffd28a'), 1.25, 1.78, 0.05, 2.75);
+        framed(g, posterArt('청춘 콘서트', '그때 그 노래를 다시', '#b45309', '#fff3d6'), 1.25, 1.78, 1.85, 2.75);
+        framed(g, record('#d97706'), 0.8, 0.8, 3.65, 3.2); framed(g, record('#9f1239'), 0.8, 0.8, 3.65, 2.2);
+        [-2.85, -0.85, 0.95, 2.85].forEach((x) => sconce(g, x, 2.55));
+      } else {         // 반대쪽
+        [-3.9, -3, -2.1].forEach((x, k) => framed(g, record(['#0f766e', '#d97706', '#9f1239'][k]), 0.76, 0.76, x, 2.25));
+        [-3, 2.9].forEach((x) => sconce(g, x, 4.7));
+        framed(g, posterArt('음악 감상실', '신청곡 받습니다', '#3f6212', '#f5f0e1'), 1.25, 1.78, 3.9, 2.75);
+        framed(g, posterArt('포크 대행진', '기타 하나, 노래 하나', '#7c2d12', '#fde8c8'), 1.25, 1.78, 2.25, 2.75);
+        framed(g, posterArt('밤의 디스코', '거울 공 아래에서', '#581c87', '#fde68a'), 1.25, 1.78, 0.6, 2.75);
+        box(5.7, 1.3, 0.05, rail, -3, 4.1, 0.03, g);
+        label(g, neonText('추억의 음악다방', '800 118px Pretendard, "Malgun Gothic", sans-serif', '#ffe9b8', '#ff9d2e'), 5.4, 1.35, -3, 4.1, 0.08);
+      }
+    });
+    return;
+  }
+
+  // 클럽: 흡음 패널, 네온 문구, 박자에 맞춰 뛰는 빛기둥
+  const panel = canvasOf(1536, 1024, (g, cw, ch) => {
+    g.fillStyle = '#0a0a14'; g.fillRect(0, 0, cw, ch);
+    const s = 96;
+    for (let y = -s; y < ch + s; y += s / 2) for (let x = -s; x < cw + s; x += s) {
+      const ox = ((y / (s / 2)) & 1) ? s / 2 : 0, cx = x + ox, l = 18 + ((cx * 7 + y * 13) % 11);
+      g.fillStyle = `hsl(250 26% ${l}%)`;
+      g.beginPath(); g.moveTo(cx, y - s / 2 + 3); g.lineTo(cx + s / 2 - 3, y); g.lineTo(cx, y + s / 2 - 3); g.lineTo(cx - s / 2 + 3, y); g.fill();
+      g.fillStyle = 'rgba(0,0,0,.34)';
+      g.beginPath(); g.moveTo(cx, y + s / 2 - 3); g.lineTo(cx + s / 2 - 3, y); g.lineTo(cx, y); g.lineTo(cx - s / 2 + 3, y); g.fill();
+    }
+    const shade = g.createLinearGradient(0, 0, 0, ch); shade.addColorStop(0, 'rgba(0,0,0,.72)'); shade.addColorStop(0.35, 'rgba(0,0,0,.12)'); shade.addColorStop(1, 'rgba(0,0,0,.4)');
+    g.fillStyle = shade; g.fillRect(0, 0, cw, ch);
+  });
+  const pillar = std(0x101019, { roughness: 0.35, metalness: 0.6 });
+  sides.forEach((g, i) => {
+    label(g, litPlane(panel, 0.38), W, H, 0, H / 2);
+    box(W, 0.3, 0.1, pillar, 0, 0.15, 0.05, g);
+    [-5.9, -2.7, 0.1, 2.9, 5.7].forEach((x) => {
+      box(0.34, H, 0.14, pillar, x, H / 2, 0.07, g);
+      const m = box(0.05, 5.4, 0.03, glow(0xffffff), x, 2.9, 0.15, g); neonList.push(m);
+    });
+    const sx = i ? -1.4 : 1.5, sw = i ? 8.2 : 6.4;
+    box(sw + 0.3, 1.5, 0.06, std(0x050509, { roughness: 0.4, metalness: 0.5 }), sx, 3.85, 0.19, g);
+    const sign = label(g, neonText(i ? 'DANCE ALL NIGHT' : 'FEEL THE BASS', '800 100px Outfit, sans-serif'), sw, sw / 4, sx, 3.85, 0.23); neonList.push(sign);
+  });
+  // 빛기둥
+  const barX = [];
+  for (const s of [1, -1]) for (const b of s > 0 ? [2.2, 5, 7.8] : [2.2, 5, 7.8, 10.6]) for (const o of [0.5, 1.1, 1.7, 2.3]) barX.push(s * (b + o));
+  const COUNT = barX.length, bars = new THREE.InstancedMesh(new THREE.BoxGeometry(0.26, 1, 0.03).translate(0, 0.5, 0), glow(0xffffff), COUNT), d = new THREE.Object3D();
+  bars.frustumCulled = false; inside.add(bars); neonList.push(bars);
+  updaters.push((dt, t, clock) => {
+    if (!inside.visible) return;
+    for (let i = 0; i < COUNT; i++) {
+      const v = 0.5 + 0.5 * Math.sin(i * 0.9 + clock.beat * Math.PI);
+      d.position.set(barX[i], 0.32, 4.84); d.scale.set(1, 0.18 + v * (0.5 + clock.energy * 1.1) + clock.kick * 0.35, 1); d.updateMatrix(); bars.setMatrixAt(i, d.matrix);
+    }
+    bars.instanceMatrix.needsUpdate = true;
+  });
+}
+
 export function buildWorld(scene, fxState, theme) {
   const gt = glowTexture(), bt = beamTexture(), updaters = [];
   const spriteMat = (color, opacity = 1) => new THREE.SpriteMaterial({ map: gt, color, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
@@ -148,7 +280,8 @@ export function buildWorld(scene, fxState, theme) {
   const neonList = [];
   const strip = (w, h, d, x, y, z) => { const m = box(w, h, d, glow(0xffffff), x, y, z, inside); neonList.push(m); return m; };
   for (let y of [2.4, 4.9]) { strip(0.05, 0.06, 25, -13.96, y, -6); strip(0.05, 0.06, 25, 13.96, y, -6); }
-  strip(11, 0.06, 0.05, -8.2, 3.7, 4.86); strip(11, 0.06, 0.05, 8.2, 3.7, 4.86);
+  strip(12.15, 0.06, 0.05, -7.9, 5.9, 4.82); strip(12.15, 0.06, 0.05, 7.9, 5.9, 4.82);
+  buildBackWall(inside, theme, neonList, updaters, flare);
 
   // 무대
   const stageM = std(0x09090f, { roughness: 0.3, metalness: 0.5 });
