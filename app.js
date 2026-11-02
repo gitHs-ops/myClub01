@@ -144,8 +144,8 @@ const DRINKS = venue.drinks;
 
 const CROWD_FLOOR = lowEnd ? 15 : 24, CROWD_TABLE = lowEnd ? 6 : 10, CROWD_BAR = lowEnd ? 2 : 4;
 const npcs = [];
-const npcCups = (p) => {
-  p.cup = makeCup(pick(DRINKS));
+const npcCups = (p, d = pick(DRINKS)) => {
+  p.cup = makeCup(d);
 };
 const floorSpot = () => [rand(FLOOR.xMin + 1, FLOOR.xMax - 1), rand(FLOOR.zMin + 1, FLOOR.zMax - 0.5)];
 function freeFloorSpot() {
@@ -418,13 +418,15 @@ function walkToTable(T) {
     if (step < 3) setStep(3);
   });
 }
-function openDrinks() {
+function openDrinks(offer = false) {
   const box = $('drinkList'); box.textContent = '';
+  $('drinkTitle').textContent = offer ? '무엇을 권할까요?' : '음료·주류 고르기';
+  $('drinkDesc').textContent = offer ? '같이 온 분의 잔으로 가져다 드립니다.' : '테이블로 가져다 드립니다.';
   DRINKS.forEach((d) => {
     const b = document.createElement('button'); b.className = 'listBtn';
     const s = document.createElement('span'); s.className = 'swatch'; s.style.background = `#${d.color.toString(16).padStart(6, '0')}`;
     const t = document.createElement('span'); const st = document.createElement('strong'); st.textContent = d.name; const sm = document.createElement('small'); sm.textContent = d.desc; t.append(st, sm);
-    b.append(s, t); b.onclick = () => { closeModals(); orderDrink(d); };
+    b.append(s, t); b.onclick = () => { closeModals(); if (offer) offerDrink(d); else orderDrink(d); };
     box.append(b);
   });
   $('drinkModal').hidden = false;
@@ -440,6 +442,35 @@ function orderDrink(d) {
   myDrink.def = d; myDrink.level = 1; myDrink.cup = makeCup(d); player.sipHigh = !!d.noStraw;
   placeCupOnTable(myTable || nearestFreeTable());
   edm.clink(); toast(`${d.name} 나왔습니다`); renderUi();
+}
+/* 같이 온 사람에게 권하기: 새 잔을 건네고, 내 잔이 있으면 함께 건배한다 */
+let offering = false;
+const buddyHere = () => !!buddy && buddy.role === 'table' && !buddy.target && Math.hypot(buddy.x - player.x, buddy.z - player.z) < 2.6;
+function offerDrink(d) {
+  const n = buddy;
+  if (!buddyHere() || offering) return;
+  offering = true; n.nextAct = now() + 12;
+  player.yawTo = Math.atan2(n.x - player.x, n.z - player.z); n.yawTo = Math.atan2(player.x - n.x, player.z - n.z);
+  say(player, `${d.name} 한 잔 어때요?`, 2);
+  renderUi();
+  later(1.6, () => {
+    n.cup?.parent?.remove(n.cup);
+    npcCups(n, d); edm.clink();
+    say(n, pick(['좋죠, 고마워요!', '잘 마실게요!', '센스 있으시네요!']), 2);
+    toast(`${d.name} 나왔습니다`);
+  });
+  later(3.6, () => {
+    const cheers = venue.band ? '위하여!' : '건배!', together = myDrink.cup && myDrink.level > 0 && !player.sipTo;
+    say(n, cheers, 1.6);
+    if (together) { say(player, cheers, 1.6); sip(); }
+    edm.clink();
+    n.sipTo = 1;
+    later(1.7, () => {
+      n.sipTo = 0; n.yawTo = Math.atan2(player.x - n.x, player.z - n.z);
+      if (n.cup) n.cup.userData.fluid.scale.y = 0.8;
+      offering = false; renderUi();
+    });
+  });
 }
 function sip() {
   if (!myDrink.cup || myDrink.level <= 0 || player.sipTo) return;
@@ -552,11 +583,12 @@ function renderUi() {
   const atTable = inTableReach();
   const hasCup = !!myDrink.cup;
   if (!atTable && (!myTable || !hasCup || step < 4)) list.push({ label: '스탠딩 테이블로 가기', primary: step === 3, fn: () => walkToTable(myTable || nearestFreeTable()) });
-  if (atTable && !hasCup) list.push({ label: '음료 고르기', primary: true, fn: openDrinks });
+  if (atTable && !hasCup) list.push({ label: '음료 고르기', primary: true, fn: () => openDrinks() });
   if (atTable && hasCup) {
     if (myDrink.level > 0) list.push({ label: player.sipTo ? '마시는 중' : `한 모금 마시기 (${Math.round(myDrink.level * 100)}%)`, primary: step === 3, disabled: !!player.sipTo, fn: sip });
-    else list.push({ label: '한 잔 더', fn: openDrinks });
+    else list.push({ label: '한 잔 더', fn: () => openDrinks() });
   }
+  if (atTable && buddyHere()) list.push({ label: offering ? '권하는 중' : '같이 온 분에게 권하기', disabled: offering, fn: () => openDrinks(true) });
   if (myDrink.sips > 0 || step >= 4) {
     list.push({ label: grooving ? '건들거리기 멈추기' : '건들거리기', primary: step === 4 && !grooving, on: grooving, fn: toggleGroove });
     if (grooving) list.push({ label: `흥: ${GROOVES[grooveLevel].name}`, fn: nextGrooveLevel });
