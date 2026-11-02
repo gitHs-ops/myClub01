@@ -21,6 +21,10 @@ export const VENUES = {
       { id: 'blue', name: '블루 소다', desc: '조명 아래서 빛나는 파란색', color: 0x22d3ee },
       { id: 'ginger', name: '진저에일', desc: '생강 향이 살짝 매콤하게', color: 0xf59e0b },
       { id: 'mojito', name: '무알코올 모히토', desc: '라임과 민트로 산뜻하게', color: 0x86efac },
+      { id: 'beer', name: '맥주', desc: '차갑게 식힌 라거 한 잔', color: 0xf2b632, glass: [1.05, 1.3], noStraw: true },
+      { id: 'highball', name: '하이볼', desc: '위스키에 탄산과 레몬', color: 0xf7dc8a, glass: [0.95, 1.35], noStraw: true },
+      { id: 'tequila', name: '데킬라 샷', desc: '한입에 털어 넣는 한 잔', color: 0xf3e3a6, glass: [0.6, 0.55], noStraw: true },
+      { id: 'cocktail', name: '칵테일', desc: '조명만큼 화려한 색', color: 0xec4899, glass: [1.1, 0.85] },
     ],
   },
   live7080: {
@@ -44,6 +48,10 @@ export const VENUES = {
       { id: 'sikhye', name: '식혜', desc: '살얼음 동동', color: 0xf5e6c8 },
       { id: 'misu', name: '미숫가루', desc: '고소하고 든든하게', color: 0xc8a36b },
       { id: 'cola', name: '병콜라', desc: '얼음 잔에 따라서', color: 0x4a1d0c },
+      { id: 'draft', name: '생맥주', desc: '거품 가득 500cc', color: 0xeeb02c, glass: [1.2, 1.2], noStraw: true, mug: true },
+      { id: 'soju', name: '소주', desc: '작은 잔에 한 잔 가득', color: 0xe8f4f8, glass: [0.55, 0.5], noStraw: true },
+      { id: 'makgeolli', name: '막걸리', desc: '양은 사발에 걸쭉하게', color: 0xf1ead8, glass: [1.5, 0.55], noStraw: true },
+      { id: 'whisky', name: '위스키', desc: '얼음 하나 넣고 천천히', color: 0xb8691b, glass: [1.15, 0.7], noStraw: true },
     ],
     wardrobe: {
       tops: [0xb45309, 0x854d0e, 0x7f1d1d, 0x3f6212, 0xf5f0e1, 0x1e3a8a, 0x92400e, 0xca8a04, 0x6b7280, 0x9f1239],

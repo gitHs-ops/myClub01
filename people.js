@@ -174,6 +174,7 @@ export function say(p, text, sec = 2.6) {
 export const goTo = (p, x, z, done = null) => { p.target = { x, z }; p.onArrive = done; p.stuck = 0; p.danceTo = 0; };
 export const jump = (p) => { if (p.jumpT == null) p.jumpT = 0; };
 
+const SIP_STRAW = [-1.3, -0.15, -0.75, -2.05], SIP_TIP = [-1.6, -0.2, -0.55, -1.8];   // 빨대로 마실 때 / 잔을 기울일 때
 const setArm = (arm, x, z, y, el) => { arm.a.rotation.set(x, y, z); arm.e.rotation.set(el, 0, 0); };
 
 /* 팔 자세를 섞기 위한 임시 값 */
@@ -254,6 +255,9 @@ export function updatePerson(p, dt, t, clock, collide) {
   armL = [armL[0] - swing, armL[1], armL[2], armL[3] - 0.16 * p.walk];
   armR = [armR[0] + swing, armR[1], armR[2], armR[3] - 0.16 * p.walk];
 
+  // 잔을 든 손은 가슴 앞에 둔다
+  if (p.cup) armR = blend(armR, [-0.1, 0.3, -0.35, -1.6], 0.85);
+
   // 팔짱(줄서기) · 대화 손짓
   if (p.cross > 0.01) {
     armL = blend(armL, [-0.62, 0.24, -0.5, -1.75], p.cross);
@@ -271,7 +275,7 @@ export function updatePerson(p, dt, t, clock, collide) {
   // 손 흔들기
   if (p.wave > 0.01) armR = blend(armR, [-2.8, 0.42 + Math.sin(t * 9) * 0.3, 0, -0.34], p.wave);
   // 음료 마시기: 컵을 든 오른손을 입으로
-  if (p.sip > 0.01) armR = blend(armR, [-0.95, 0.28, -0.58, -2.05], p.sip);
+  if (p.sip > 0.01) armR = blend(armR, p.cup?.userData.tilt > 0.5 || p.sipHigh ? SIP_TIP : SIP_STRAW, p.sip);
   // 하이파이브
   if (p.hifive > 0.01) armR = blend(armR, [-2.42, -0.06, 0, -0.24], p.hifive);
 

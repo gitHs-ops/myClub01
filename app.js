@@ -1,8 +1,8 @@
 import * as THREE from './vendor/three.min.js';
 import { Edm, TRACKS } from './edm.js?v=6';
-import { makePerson, updatePerson, goTo, say, jump, setWardrobe } from './people.js?v=4';
+import { makePerson, updatePerson, goTo, say, jump, setWardrobe } from './people.js?v=5';
 import { buildWorld, ROOM, FLOOR, TABLES, BAR_SPOTS } from './world.js?v=4';
-import { VENUES } from './venues.js?v=1';
+import { VENUES } from './venues.js?v=2';
 import { listTracks, addTrack, putTrack, removeTrack, isAudioFile, titleOf, analyze } from './mylist.js?v=1';
 
 const $ = (id) => document.getElementById(id);
@@ -112,21 +112,40 @@ const fluidG = new THREE.CylinderGeometry(0.046, 0.037, 0.13, 14); fluidG.transl
 const strawG = new THREE.CylinderGeometry(0.005, 0.005, 0.22, 6);
 const strawM = new THREE.MeshBasicMaterial({ color: 0xffffff });
 const glassM = new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.26, roughness: 0.08, side: THREE.DoubleSide, depthWrite: false });
-function makeCup(color) {
-  const g = new THREE.Group();
+const handleG = new THREE.TorusGeometry(0.036, 0.008, 6, 14);
+function makeCup(d) {
+  const g = new THREE.Group(), [sx, sy] = d.glass || [1, 1];
   g.add(new THREE.Mesh(cupGlass, glassM));
-  const fluid = new THREE.Mesh(fluidG, new THREE.MeshBasicMaterial({ color, toneMapped: false })); fluid.position.y = -0.068; g.add(fluid);
-  const straw = new THREE.Mesh(strawG, strawM); straw.position.set(0.018, 0.04, 0); straw.rotation.z = -0.22; g.add(straw);
-  g.userData.fluid = fluid; scene.add(g);
+  const fluid = new THREE.Mesh(fluidG, new THREE.MeshBasicMaterial({ color: d.color, toneMapped: false })); fluid.position.y = -0.068; g.add(fluid);
+  if (!d.noStraw) { const straw = new THREE.Mesh(strawG, strawM); straw.position.set(0.018, 0.04, 0); straw.rotation.z = -0.22; g.add(straw); }
+  if (d.mug) { const h = new THREE.Mesh(handleG, glassM); h.position.set(0, 0, 0.056); h.rotation.y = Math.PI / 2; g.add(h); }
+  g.scale.set(sx, sy, sx);
+  // 입에 닿는 곳: 빨대 끝, 빨대가 없으면 잔의 가장자리 (잔 안쪽 좌표)
+  g.userData = { fluid, tilt: d.noStraw ? 0.95 : 0.22, grip: 0.05 * sx - 0.015, lip: d.noStraw ? new THREE.Vector3(0.05 * sx, 0.075 * sy, 0) : new THREE.Vector3(0.042 * sx, 0.148 * sy, 0) };
+  scene.add(g);
   return g;
+}
+/* 잔은 언제나 똑바로 서 있고, 마실 때만 입 쪽으로 기운다 */
+const cupF = new THREE.Vector3(), cupHand = new THREE.Vector3(), cupMouth = new THREE.Vector3(), cupLip = new THREE.Vector3(), cupAxis = new THREE.Vector3();
+const cupYaw = new THREE.Quaternion(), cupTilt = new THREE.Quaternion(), CUP_REST = new THREE.Quaternion(), Y_AXIS = new THREE.Vector3(0, 1, 0);
+function holdCup(p, cup) {
+  const u = cup.userData, k = clamp((p.sip - 0.4) / 0.6, 0, 1), m = k * k * (3 - 2 * k) * (1 - p.hifive);
+  p.root.getWorldDirection(cupF); cupF.y = 0; cupF.normalize();
+  cupYaw.setFromAxisAngle(Y_AXIS, Math.atan2(cupF.z, -cupF.x));
+  cupAxis.set(-cupF.z, 0, cupF.x);
+  cupTilt.setFromAxisAngle(cupAxis, u.tilt * m);
+  cup.quaternion.multiplyQuaternions(cupTilt, cupYaw);
+  p.arms[1].h.localToWorld(cupHand.set(0, -0.02, 0)).addScaledVector(cupF, u.grip);
+  p.head.localToWorld(cupMouth.set(0, -0.05, 0.14));
+  cupLip.copy(u.lip).applyQuaternion(cup.quaternion);
+  cup.position.lerpVectors(cupHand, cupMouth.sub(cupLip), m);
 }
 const DRINKS = venue.drinks;
 
 const CROWD_FLOOR = lowEnd ? 15 : 24, CROWD_TABLE = lowEnd ? 6 : 10, CROWD_BAR = lowEnd ? 2 : 4;
 const npcs = [];
 const npcCups = (p) => {
-  const c = makeCup(pick(DRINKS).color); p.arms[1].h.add(c); c.position.set(0, -0.06, 0.03);
-  p.cup = c;
+  p.cup = makeCup(pick(DRINKS));
 };
 const floorSpot = () => [rand(FLOOR.xMin + 1, FLOOR.xMax - 1), rand(FLOOR.zMin + 1, FLOOR.zMax - 0.5)];
 function freeFloorSpot() {
@@ -418,7 +437,7 @@ function placeCupOnTable(T) {
 }
 function orderDrink(d) {
   if (myDrink.cup) { myDrink.cup.parent?.remove(myDrink.cup); }
-  myDrink.def = d; myDrink.level = 1; myDrink.cup = makeCup(d.color);
+  myDrink.def = d; myDrink.level = 1; myDrink.cup = makeCup(d); player.sipHigh = !!d.noStraw;
   placeCupOnTable(myTable || nearestFreeTable());
   edm.clink(); toast(`${d.name} 나왔습니다`); renderUi();
 }
@@ -824,6 +843,7 @@ function frame(nowMs) {
       p.bubble.material.opacity = sameSide && Math.hypot(p.x - player.x, p.z - player.z) < 13 ? 1 : 0;
     }
   }
+  for (const p of everyone) if (p.cup) holdCup(p, p.cup);
   if (phase === 'room' && (clock.section.name === 'drop')) crowdBeat(clock); else crowdBeat.last = -1;
   if (clock.section.name !== 'drop') dropSeen = -1;
 
@@ -852,10 +872,9 @@ function frame(nowMs) {
   // 음료 잔: 테이블 ↔ 손 ↔ 입
   if (myDrink.cup) {
     const k = clamp(player.sip * 1.25, 0, 1), s = k * k * (3 - 2 * k);
-    player.arms[1].h.getWorldPosition(tmp); tmp.y -= 0.03;
-    myDrink.cup.position.lerpVectors(myDrink.pos, tmp, s);
-    myDrink.cup.rotation.x = -0.55 * clamp((player.sip - 0.7) / 0.3, 0, 1) * Math.cos(player.yaw);
-    myDrink.cup.rotation.z = 0.55 * clamp((player.sip - 0.7) / 0.3, 0, 1) * Math.sin(player.yaw);
+    holdCup(player, myDrink.cup);
+    myDrink.cup.position.lerpVectors(myDrink.pos, myDrink.cup.position, s);
+    myDrink.cup.quaternion.slerp(CUP_REST, 1 - s);
   }
 
   // 월드
@@ -900,4 +919,4 @@ phase = 'queue'; setupQueue(); setStep(1); renderUi();
 camSet(0.82, 1.46, 8.2, 2);
 
 // 시험용 접근점
-window.club = { edm, player, npcs, renderer, buddy: () => buddy, state: () => ({ phase, step, grooving, grooveBeats, hi5, mingling: mingling.length, sips: myDrink.sips, x: player.x, z: player.z, queue: queue.indexOf(player) }), clockNow: () => edm.clock() };
+window.club = { edm, player, npcs, renderer, scene, camera, buddy: () => buddy, state: () => ({ phase, step, grooving, grooveBeats, hi5, mingling: mingling.length, sips: myDrink.sips, x: player.x, z: player.z, queue: queue.indexOf(player) }), clockNow: () => edm.clock() };
