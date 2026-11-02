@@ -23,6 +23,54 @@ export const TRACKS = [
     bassLine: [0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0],
     lead: [24, 24, 27, 24, 31, 24, 27, 24, 24, 24, 27, 24, 32, 31, 27, 24], wave: 'sawtooth',
   },
+  {
+    id: 'trance', venue: 'club', name: 'Starlight Gate', desc: '138 BPM · 트랜스', bpm: 138, hue: 0.55, led: 'rays',
+    chords: [[62, 65, 69], [58, 62, 65], [53, 57, 60], [60, 64, 67]], bass: [38, 34, 41, 36],
+    stab: [1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0],
+    bassLine: [0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1], leadAlways: true,
+    lead: [0, 3, 7, 12, 15, 12, 7, 3, 0, 3, 7, 12, 19, 15, 12, 7], wave: 'sawtooth',
+  },
+  {
+    id: 'dubstep', venue: 'club', name: 'Heavy Wobble', desc: '140 BPM · 덥스텝', bpm: 140, div: 2, hue: 0.28, led: 'grid',
+    kicks: [0, 10], snares: [8], bassType: 'wobble', bassLen: 7, noOpenHat: true, duck: 0.6,
+    chords: [[52, 55, 59], [52, 55, 59], [48, 52, 55], [50, 53, 57]], bass: [28, 28, 24, 26],
+    stab: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    bassLine: [1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0],
+    lead: [12, 0, 0, 15, 0, 0, 12, 0, 19, 0, 0, 17, 0, 15, 0, 0], wave: 'square',
+  },
+  {
+    id: 'dnb', venue: 'club', name: 'Night Runner', desc: '174 BPM · 드럼 앤 베이스', bpm: 174, div: 2, hue: 0.42, led: 'scan',
+    kicks: [0, 10], snares: [4, 12], bassType: 'reese', bassLen: 9, noOpenHat: true, duck: 0.65,
+    chords: [[48, 51, 55], [44, 48, 51], [51, 55, 58], [46, 50, 53]], bass: [24, 32, 27, 34],
+    stab: [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
+    bassLine: [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0], leadAlways: true,
+    lead: [24, 0, 0, 22, 0, 0, 19, 0, 24, 0, 0, 27, 0, 0, 22, 0], wave: 'sawtooth',
+  },
+  {
+    id: 'future', venue: 'club', name: 'Soft Neon', desc: '150 BPM · 퓨처 베이스', bpm: 150, div: 2, hue: 0.12, led: 'wave',
+    kicks: [0, 7, 10], snares: [8], bassType: 'sub', bassLen: 5, noOpenHat: true, duck: 0.15, stabV: 0.13,
+    chords: [[53, 57, 60], [55, 59, 62], [52, 55, 59], [57, 60, 64]], bass: [29, 31, 28, 33],
+    stab: [1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0],
+    bassLine: [1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0], leadAlways: true, leadType: 'pluck',
+    lead: [24, 0, 19, 0, 16, 0, 19, 0, 24, 0, 28, 0, 26, 24, 19, 0], wave: 'triangle',
+  },
+  {
+    id: 'techno', venue: 'club', name: 'Warehouse 130', desc: '130 BPM · 애시드 테크노', bpm: 130, hue: 0.2, led: 'scan',
+    bassType: 'acid', hat16: true, duck: 0.55,
+    chords: [[45, 48, 52], [45, 48, 52], [45, 48, 52], [43, 46, 50]], bass: [33, 33, 33, 31],
+    stab: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    bassLine: [1, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1],
+    bassNotes: [0, 0, 0, 12, 0, 0, 3, 0, 0, 0, 7, 0, 0, 12, 0, 10],
+    lead: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], wave: 'square',
+  },
+  {
+    id: 'tropical', venue: 'club', name: 'Island Sunset', desc: '110 BPM · 트로피컬 하우스', bpm: 110, hue: 0.62, led: 'wave',
+    kickV: 0.72, clapV: 0.26, bassType: 'sub', bassLen: 3, duck: 0.5, stabV: 0.045, leadAlways: true, leadType: 'pluck',
+    chords: [[60, 64, 67], [55, 59, 62], [57, 60, 64], [53, 57, 60]], bass: [36, 31, 33, 29],
+    stab: [0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0],
+    bassLine: [1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0],
+    lead: [12, 0, 16, 19, 0, 16, 12, 0, 24, 0, 19, 16, 0, 19, 16, 0], wave: 'triangle',
+  },
   /* 7080: 직접 지은 곡. melody는 코드 구성음 번호(0 쉼표, 1~6 위로 올라감), 2마디 32칸 */
   {
     id: 'gogo', venue: 'live7080', style: 'band', feel: 'gogo', name: '그 밤의 고고', desc: '124 BPM · 1970년대 고고', bpm: 124,
@@ -132,6 +180,14 @@ export class Edm {
     this.t0 = this.ctx.currentTime + 0.1; this.nextStep = 0;
   }
 
+  /* 재생 목록의 다음 곡으로 박자가 끊기지 않게 넘어간다 */
+  advance(t) {
+    const list = this.playlist || TRACKS, i = list.indexOf(this.track), next = list[(i + 1) % list.length];
+    this.track = next; this.applyTrack();
+    this.t0 = t; this.nextStep = 0;
+    this.onTrack?.(next);
+  }
+
   setVolume(v) { this.vol = v; if (this.master) this.master.gain.setTargetAtTime(v, this.ctx.currentTime, 0.05); }
 
   /* 0: 길거리, 1: 복도, 2: 플로어 가장자리, 3: 메인 스테이지 앞 */
@@ -147,10 +203,10 @@ export class Edm {
   /* 현재 위치: beat는 연속값. 곡 구간과 흥을 함께 돌려준다 */
   clock() {
     if (!this.started) return { beat: performance.now() / 468, bar: 0, section: FORM[0], energy: 0.35, beatFrac: 0, kick: 0 };
-    const beat = Math.max(0, (this.ctx.currentTime - this.t0) / this.spb), bar = Math.floor(beat / 4);
+    const raw = Math.max(0, (this.ctx.currentTime - this.t0) / this.spb), bar = Math.floor(raw / 4), beat = raw / (this.track.div || 1);
     const section = sectionAt(bar, this.form), beatFrac = beat % 1;
-    const inBuild = section.name === 'build' ? (section.barIn + (beat % 4) / 4) / section.bars : 0;
-    return { beat, bar, section, beatFrac, energy: section.energy + inBuild * 0.35, build: inBuild, kick: section.name === 'break' ? 0 : Math.exp(-beatFrac * 5) };
+    const inBuild = section.name === 'build' ? (section.barIn + (raw % 4) / 4) / section.bars : 0;
+    return { track: this.track, beat, bar, section, beatFrac, energy: section.energy + inBuild * 0.35, build: inBuild, kick: section.name === 'break' ? 0 : Math.exp(-beatFrac * 5) };
   }
 
   schedule() {
@@ -162,6 +218,9 @@ export class Edm {
     for (;;) {
       const t = this.t0 + this.nextStep * this.spStep;
       if (t > end) break;
+      if (this.autoNext && this.nextStep >= this.form.reduce((s, f) => s + f.bars, 0) * 16) {
+        this.advance(t); continue;
+      }
       this.playStep(this.nextStep, t);
       this.nextStep++;
     }
@@ -263,19 +322,22 @@ export class Edm {
       if (build) { f.setValueAtTime(700 + sec.barIn * 900, t); f.linearRampToValueAtTime(700 + (sec.barIn + 1) * 900, t + this.spb * 4); }
       else f.setTargetAtTime(drop ? 9000 : groove ? 2600 : brk ? 1100 : 900, t, 0.3);
     }
-    if (hasKick && s16 % 4 === 0) { this.kick(t, drop ? 1 : 0.9); this.sidechain(t, drop ? 0.22 : 0.45); }
-    if ((drop || groove) && (s16 === 4 || s16 === 12)) this.clap(t, 0.5);
-    if (!brk && !build && s16 % 4 === 2) this.hat(t, 0.28, 0.13);
-    if ((drop || groove) && s16 % 2 === 1) this.hat(t, 0.09, 0.04);
+    if (hasKick && (T.kicks || [0, 4, 8, 12]).includes(s16)) { this.kick(t, (T.kickV || 1) * (drop ? 1 : 0.9)); this.sidechain(t, T.duck ?? (drop ? 0.22 : 0.45)); }
+    if ((drop || groove) && (T.snares || [4, 12]).includes(s16)) { if (T.snares) this.snare(t, 0.52); else this.clap(t, T.clapV || 0.5); }
+    if (!brk && !build && !T.noOpenHat && s16 % 4 === 2) this.hat(t, 0.28, 0.13);
+    if ((drop || groove) && (T.hat16 || s16 % 2 === 1)) this.hat(t, T.hat16 ? 0.07 : 0.09, 0.04);
     if (drop && bar % 4 === 3 && s16 >= 12) this.clap(t, 0.25 + (s16 - 12) * 0.08);
 
-    if ((drop || groove || (intro && sec.barIn >= 4)) && T.bassLine[s16]) this.bass(t, midi(root + (s16 === 15 ? 12 : 0)), drop ? 0.42 : 0.34);
-    if (drop && T.stab[s16]) this.stab(t, chord.map((n) => n + 12), 0.1);
+    if ((drop || groove || (intro && sec.barIn >= 4)) && T.bassLine[s16]) this.playBass(T, t, midi(root + (T.bassNotes ? T.bassNotes[s16] : s16 === 15 ? 12 : 0)), drop ? 0.42 : 0.34, drop, bar);
+    if (drop && T.stab[s16]) this.stab(t, chord.map((n) => n + 12), T.stabV || 0.1);
     if (groove && T.stab[s16] && sec.barIn >= 4) this.stab(t, chord, 0.06);
     if ((brk || build) && s16 === 0 && sec.barIn % 2 === 0) this.pad(t, chord, this.spb * 8, brk ? 0.05 : 0.065);
-    if ((drop && sec.barIn >= 8) || build || (brk && sec.barIn >= 2)) {
+    if ((drop && (T.leadAlways || sec.barIn >= 8)) || build || (brk && sec.barIn >= 2)) {
       const n = T.lead[s16];
-      if (n) this.lead(t, midi(chord[0] + n), brk ? 0.05 : drop ? 0.08 : 0.06, T.wave);
+      if (n || (T.leadAlways && s16 % 8 === 0)) {
+        if (T.leadType === 'pluck') this.pluck(t, midi(chord[0] + n), brk ? 0.08 : 0.13);
+        else this.lead(t, midi(chord[0] + n), brk ? 0.05 : drop ? 0.08 : 0.06, T.wave);
+      }
     }
     if (build) {
       const every = sec.barIn < 2 ? 4 : lastBarOfBuild ? 1 : 2;
@@ -286,6 +348,60 @@ export class Edm {
   }
 
   env(g, t, a, peak, d) { g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + a + d); }
+
+  playBass(T, t, f, v, drop, bar) {
+    const dur = this.spStep * (T.bassLen || 1.5);
+    if (T.bassType === 'wobble') this.wobble(t, f, v, dur, drop ? (bar % 2 ? 6 : 3) : 2);
+    else if (T.bassType === 'reese') this.reese(t, f, v, dur);
+    else if (T.bassType === 'sub') this.sub(t, f, v * 0.62, dur);
+    else if (T.bassType === 'acid') this.acid(t, f, v * 0.5);
+    else this.bass(t, f, v);
+  }
+
+  /* 덥스텝: 필터가 박자에 맞춰 울렁인다 */
+  wobble(t, f, v, dur, perBeat) {
+    const { ctx } = this, a = ctx.createOscillator(), b = ctx.createOscillator(), lp = ctx.createBiquadFilter(), g = ctx.createGain(), lfo = ctx.createOscillator(), depth = ctx.createGain();
+    a.type = 'sawtooth'; b.type = 'square'; a.frequency.value = f; b.frequency.value = f * 1.004;
+    lp.type = 'lowpass'; lp.Q.value = 9; lp.frequency.value = 560;
+    lfo.frequency.value = perBeat / this.spb; depth.gain.value = 470; lfo.connect(depth); depth.connect(lp.frequency);
+    g.gain.setValueAtTime(v * 0.3, t); g.gain.setValueAtTime(v * 0.3, t + dur * 0.92); g.gain.linearRampToValueAtTime(0.0001, t + dur);
+    a.connect(lp); b.connect(lp); lp.connect(g); g.connect(this.duck);
+    for (const x of [a, b, lfo]) { x.start(t); x.stop(t + dur + 0.03); }
+    this.sub(t, f, v * 0.34, dur);
+  }
+
+  /* 드럼 앤 베이스: 살짝 어긋난 톱니파 두 개가 맥놀이를 낸다 */
+  reese(t, f, v, dur) {
+    const { ctx } = this, lp = ctx.createBiquadFilter(), g = ctx.createGain();
+    lp.type = 'lowpass'; lp.Q.value = 3; lp.frequency.setValueAtTime(320, t); lp.frequency.linearRampToValueAtTime(760, t + dur * 0.6); lp.frequency.linearRampToValueAtTime(300, t + dur);
+    g.gain.setValueAtTime(v * 0.42, t); g.gain.setValueAtTime(v * 0.42, t + dur * 0.9); g.gain.linearRampToValueAtTime(0.0001, t + dur);
+    lp.connect(g); g.connect(this.duck);
+    for (const de of [-16, 15]) { const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f; o.detune.value = de; o.connect(lp); o.start(t); o.stop(t + dur + 0.03); }
+    this.sub(t, f, v * 0.34, dur);
+  }
+
+  sub(t, f, v, dur) {
+    const { ctx } = this, o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sine'; o.frequency.value = f;
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(v, t + 0.012); g.gain.setValueAtTime(v, t + dur * 0.75); g.gain.linearRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(this.duck); o.start(t); o.stop(t + dur + 0.03);
+  }
+
+  /* 애시드 테크노: 공명이 강한 필터가 음마다 튄다 */
+  acid(t, f, v) {
+    const { ctx } = this, o = ctx.createOscillator(), lp = ctx.createBiquadFilter(), g = ctx.createGain(), dur = this.spStep * 1.05;
+    o.type = 'sawtooth'; o.frequency.value = f * 2;
+    lp.type = 'lowpass'; lp.Q.value = 16; lp.frequency.setValueAtTime(1500, t); lp.frequency.exponentialRampToValueAtTime(260, t + dur);
+    this.env(g, t, 0.003, v, dur);
+    o.connect(lp); lp.connect(g); g.connect(this.duck); g.connect(this.echo); o.start(t); o.stop(t + dur + 0.03);
+  }
+
+  /* 마림바처럼 톡 튀는 음 */
+  pluck(t, f, v) {
+    const g = this.voice(t, f, 0.26, v, 'triangle', [0], this.duck);
+    g.connect(this.echo); g.connect(this.verb);
+    this.voice(t, f * 2, 0.08, v * 0.4, 'sine', [0], this.duck);
+  }
 
   sidechain(t, low) {
     const g = this.duck.gain;

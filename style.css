@@ -39,6 +39,10 @@ canvas#scene:active { cursor: grabbing; }
 #steps li.on b { background: #fff; color: var(--accent-secondary); }
 #hudRight { display: flex; gap: 8px; align-items: center; }
 .chip { display: flex; align-items: center; gap: 8px; height: 42px; padding: 0 14px; border-radius: 999px; font: 600 13px var(--font-accent); white-space: nowrap; }
+#nowChip { cursor: pointer; color: var(--text-primary); }
+#nowChip:hover { transform: translateY(-2px); }
+#nowChip:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+#nowChip svg { width: 15px; height: 15px; fill: var(--text-primary); stroke: var(--text-primary); stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; }
 #beatDot { width: 10px; height: 10px; border-radius: 50%; background: var(--hot); transition: none; }
 .iconBtn { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; cursor: pointer; padding: 0; }
 .iconBtn svg, .modalX svg { width: 20px; height: 20px; fill: none; stroke: var(--text-primary); stroke-width: 2; stroke-linecap: round; }
@@ -107,7 +111,7 @@ h2 { margin: 0 44px 2px 0; font-size: 21px; font-weight: 800; letter-spacing: -0
 h3 { margin: 14px 0 8px; font-size: 14px; font-weight: 700; }
 .muted { margin: 0 0 12px; color: var(--text-secondary); font-size: 14px; }
 .muted.hint { margin: 14px 0 0; font-size: 13px; }
-.listBtn { display: flex; width: 100%; align-items: center; gap: 12px; padding: 11px 12px; margin-bottom: 7px; border-radius: 14px; border: 1px solid var(--field-border); background: var(--field-bg); text-align: left; cursor: pointer; font: inherit; color: inherit; animation: cardIn .4s var(--ease) both; }
+.listBtn { display: flex; width: 100%; align-items: center; gap: 12px; padding: 8px 12px; margin-bottom: 5px; border-radius: 14px; border: 1px solid var(--field-border); background: var(--field-bg); text-align: left; cursor: pointer; font: inherit; color: inherit; animation: cardIn .4s var(--ease) both; }
 .listBtn:nth-child(2) { animation-delay: .04s; } .listBtn:nth-child(3) { animation-delay: .08s; } .listBtn:nth-child(n+4) { animation-delay: .12s; }
 .listBtn:hover { transform: translateY(-2px); border-color: var(--accent-primary); box-shadow: 0 8px 18px var(--accent-glow); }
 .listBtn.on { border-color: var(--accent-primary); box-shadow: 0 0 0 3px var(--accent-glow); }
@@ -133,7 +137,7 @@ h3 { margin: 14px 0 8px; font-size: 14px; font-weight: 700; }
   #steps li.on { padding-right: 11px; }
   #steps li.on span { display: inline; font-size: 12px; }
   #nowName { display: none; }
-  .chip { padding: 0 16px; }
+  .chip { padding: 0 11px; gap: 5px; }
   #caption { font-size: 14px; padding: 8px 14px; }
   .btn { font-size: 14px; padding: 11px 14px; }
 }

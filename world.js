@@ -341,7 +341,7 @@ export function buildWorld(scene, fxState, theme) {
   };
 
   /* ───── 매 프레임 ───── */
-  let tick = 0, lastBar = -1, flash = 0, hueBase = 0;
+  let tick = 0, lastBar = -1, flash = 0, hueBase = 0, hueAll = 0;
   const palette = theme.palette;
   const c1 = new THREE.Color(), c2 = new THREE.Color();
   const scratch = new THREE.Color();
@@ -371,9 +371,28 @@ export function buildWorld(scene, fxState, theme) {
   function drawLed(clock, freq) {
     if (theme.band) { drawMarquee(clock); return; }
     const W2 = ledC.width, H = ledC.height, name = clock.section.name, e = clock.energy, pal = palette[name] || palette.groove;
-    const h1 = (pal[0] + hueBase) % 1, h2 = (pal[1] + hueBase) % 1, css = (h, l) => `hsl(${h * 360} 90% ${l}%)`;
+    const h1 = (pal[0] + hueAll) % 1, h2 = (pal[1] + hueAll) % 1, css = (h, l) => `hsl(${h * 360} 90% ${l}%)`;
     led.fillStyle = '#04030a'; led.fillRect(0, 0, W2, H);
-    if (name === 'drop') {
+    const ledMode = clock.track?.led;
+    if (name === 'drop' && ledMode === 'rays') {
+      led.save(); led.translate(W2 / 2, H / 2); led.rotate(clock.beat * 0.2);
+      for (let i = 0; i < 12; i++) { led.rotate(Math.PI / 6); led.fillStyle = css(i % 2 ? h1 : h2, i % 2 ? 44 : 26); led.beginPath(); led.moveTo(0, 0); led.lineTo(460, -62); led.lineTo(460, 62); led.fill(); }
+      led.restore();
+    } else if (name === 'drop' && ledMode === 'grid') {
+      const seed = Math.floor(clock.beat * 2);
+      for (let y = 0; y < 6; y++) for (let x = 0; x < 16; x++) {
+        if (((x * 7 + y * 13 + seed * 5) % 4) === 0) { led.fillStyle = css((x + y) % 2 ? h1 : h2, 50); led.fillRect(x * 40 + 2, y * 40 + 2, 36, 36); }
+      }
+    } else if (name === 'drop' && ledMode === 'wave') {
+      for (let k = 0; k < 5; k++) {
+        led.strokeStyle = css(k % 2 ? h1 : h2, 58); led.lineWidth = 12; led.beginPath();
+        for (let x = 0; x <= W2; x += 16) { const y = H / 2 + (k - 2) * 38 + Math.sin(x * 0.018 + clock.beat * 1.6 + k) * 26; if (x) led.lineTo(x, y); else led.moveTo(x, y); }
+        led.stroke();
+      }
+    } else if (name === 'drop' && ledMode === 'scan') {
+      const pos = ((clock.beat % 2) / 2) * W2;
+      for (let i = 0; i < 6; i++) { led.fillStyle = css(i % 2 ? h1 : h2, 54 - i * 6); led.fillRect((pos + i * 110) % W2, 0, 56, H); }
+    } else if (name === 'drop') {
       for (let i = 7; i >= 0; i--) {
         const k = ((clock.beat / 2 + i / 8) % 1), r = k * 370;
         led.strokeStyle = css(i % 2 ? h1 : h2, 40 + 26 * (1 - k)); led.lineWidth = 7 + 18 * k;
@@ -401,6 +420,7 @@ export function buildWorld(scene, fxState, theme) {
 
   function update(dt, t, clock, edm, playerZ) {
     tick++;
+    hueAll = (hueBase + (clock.track?.hue || 0)) % 1;
     const outdoors = playerZ > 10.2, fx = fxState.full, name = clock.section.name, e = Math.min(1.1, clock.energy), pal = palette[name] || palette.groove;
     if (clock.bar !== lastBar) { lastBar = clock.bar; if (clock.bar % 4 === 0 && !theme.band) hueBase = (hueBase + 0.11) % 1; if (name === 'drop' && clock.section.barIn === 0 && !outdoors && !theme.band) fireDrop(); }
     if (clock.beatFrac < 0.12 && flash < 0.5) flash = name === 'drop' ? 1 : 0.5;
@@ -420,12 +440,12 @@ export function buildWorld(scene, fxState, theme) {
     updaters.forEach((f) => f(dt, t, clock));
 
     // 바깥에서는 안쪽을 계산하지 않는다 (복도 조명만 유지)
-    stripA.forEach((m) => m.material.color.setHSL((pal[0] + hueBase) % 1, 0.9, 0.55));
+    stripA.forEach((m) => m.material.color.setHSL((pal[0] + hueAll) % 1, 0.9, 0.55));
     if (outdoors && doorOpen < 0.02) { inside.visible = false; for (const p of washes) p.intensity = 0; kickLight.intensity = 0; stageLight.intensity = 0; barLight.intensity = 0; return; }
     barLight.intensity = 22;
     inside.visible = true;
 
-    const h1 = (pal[0] + hueBase) % 1, h2 = (pal[1] + hueBase) % 1, h3 = (pal[2] + hueBase) % 1;
+    const h1 = (pal[0] + hueAll) % 1, h2 = (pal[1] + hueAll) % 1, h3 = (pal[2] + hueAll) % 1;
     c1.setHSL(h1, 0.95, 0.56); c2.setHSL(h2, 0.95, 0.56);
     if (tick % 3 === 0) neonList.forEach((m, i) => m.material.color.copy(i % 2 ? c2 : c1).multiplyScalar(0.72 + clock.kick * 0.5));
 
@@ -440,6 +460,12 @@ export function buildWorld(scene, fxState, theme) {
         if (theme.band) {   // 체크 무늬 디스코 플로어: 박자마다 칸이 번갈아 켜진다
           const on = (ix + iz + step) % 2 === 0;
           v = name === 'drop' ? (on ? 0.62 : 0.07) : name === 'break' ? 0.05 + (0.5 + 0.5 * Math.sin(ix * 0.7 + t)) * 0.16 : on ? 0.3 * (0.45 + clock.kick * 0.55) : 0.05;
+        } else if (name === 'drop' && clock.track?.led === 'wave') {
+          v = 0.1 + (0.5 + 0.5 * Math.sin(ix * 0.6 + iz * 0.3 - clock.beat * Math.PI)) * 0.62;
+        } else if (name === 'drop' && clock.track?.led === 'scan') {
+          v = 0.05 + Math.max(0, 1 - Math.abs(((iz + clock.beat * 3) % NZ) - 2) * 0.5) * 0.9;
+        } else if (name === 'drop' && clock.track?.led === 'grid') {
+          v = (ix * 7 + iz * 13 + Math.floor(clock.beat * 2) * 5) % 4 === 0 ? 0.85 : 0.06;
         } else if (name === 'drop') { v = 0.18 + Math.max(0, Math.sin(dist * 0.9 - clock.beat * Math.PI * 2)) ** 3 * 0.86; }
         else if (name === 'build') { v = (ix + iz + step) % 2 === 0 ? 0.08 + clock.build * 0.75 : 0.03; }
         else if (name === 'break') { v = 0.05 + (0.5 + 0.5 * Math.sin(ix * 0.7 + iz * 0.5 + t * 0.7)) * 0.17; }
@@ -469,7 +495,7 @@ export function buildWorld(scene, fxState, theme) {
       const ph = clock.beat * Math.PI * 0.25, spread = (i - 6.5) * 0.11;
       l.rotation.x = 1.14 + Math.sin(ph + i * 0.25) * 0.14;
       l.rotation.z = -(spread + Math.sin(ph * 0.5) * 0.28);
-      mat.opacity = 0.34 + flash * 0.42; mat.color.setHSL((0.36 + hueBase) % 1, 1, 0.56);
+      mat.opacity = 0.34 + flash * 0.42; mat.color.setHSL((0.36 + hueAll) % 1, 1, 0.56);
     });
 
     // 색 조명

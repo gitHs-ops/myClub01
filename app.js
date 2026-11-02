@@ -1,7 +1,7 @@
 import * as THREE from './vendor/three.min.js';
-import { Edm, TRACKS } from './edm.js?v=3';
+import { Edm, TRACKS } from './edm.js?v=5';
 import { makePerson, updatePerson, goTo, say, jump, setWardrobe } from './people.js?v=3';
-import { buildWorld, ROOM, FLOOR, TABLES, BAR_SPOTS } from './world.js?v=3';
+import { buildWorld, ROOM, FLOOR, TABLES, BAR_SPOTS } from './world.js?v=4';
 import { VENUES } from './venues.js?v=1';
 
 const $ = (id) => document.getElementById(id);
@@ -14,7 +14,7 @@ const later = (sec, f) => setTimeout(f, sec * 1000);
 
 /* ───── 설정 ───── */
 const KEY = 'clubpulse.v1';
-const settings = Object.assign({ volume: 80, tracks: { club: 'neon', live7080: 'gogo' }, lowFx: matchMedia('(prefers-reduced-motion: reduce)').matches }, (() => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } })());
+const settings = Object.assign({ autoNext: true, volume: 80, tracks: { club: 'neon', live7080: 'gogo' }, lowFx: matchMedia('(prefers-reduced-motion: reduce)').matches }, (() => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } })());
 const saveSettings = () => { try { localStorage.setItem(KEY, JSON.stringify(settings)); } catch { /* 사생활 모드 */ } };
 const fxState = { full: !settings.lowFx };
 
@@ -574,7 +574,20 @@ function drawTracks() {
     box.append(b);
   });
 }
-$('btnSettings').onclick = () => { drawTracks(); $('volume').value = settings.volume; $('lowFx').checked = settings.lowFx; $('settingsModal').hidden = false; };
+/* 지금 곡 표시를 누르면 다음 곡. EDM은 곡이 끝나면 저절로 다음 곡으로 넘어간다 */
+const venueTracks = TRACKS.filter((x) => x.venue === venue.id);
+edm.playlist = venueTracks;
+edm.autoNext = venue.id === 'club' && settings.autoNext;
+const announceTrack = (t) => { $('nowName').textContent = t.name; toast(`${t.name} · ${t.desc}`, 2.6); if (!$('settingsModal').hidden) drawTracks(); };
+edm.onTrack = announceTrack;
+$('nowChip').onclick = () => {
+  const next = venueTracks[(venueTracks.indexOf(edm.track) + 1) % venueTracks.length];
+  settings.tracks[venue.id] = next.id; saveSettings();
+  edm.setTrack(next.id); announceTrack(next);
+};
+$('autoNextRow').hidden = venue.id !== 'club';
+$('autoNext').onchange = (e) => { settings.autoNext = e.target.checked; edm.autoNext = venue.id === 'club' && settings.autoNext; saveSettings(); };
+$('btnSettings').onclick = () => { drawTracks(); $('autoNext').checked = settings.autoNext; $('volume').value = settings.volume; $('lowFx').checked = settings.lowFx; $('settingsModal').hidden = false; };
 $('volume').oninput = (e) => { settings.volume = +e.target.value; edm.setVolume(settings.volume / 100); saveSettings(); };
 $('lowFx').onchange = (e) => { settings.lowFx = e.target.checked; fxState.full = !settings.lowFx; saveSettings(); };
 
