@@ -55,9 +55,9 @@ const world = buildWorld(scene, fxState, venue);
 
 /* ───── 사람들 ───── */
 const everyone = [];
-// 손님 여섯 명 중 한 명은 블록 캐릭터다
+// 손님은 사람과 블록 캐릭터가 반반이다
 let guestCount = 0;
-const spawn = (look) => { const p = makePerson(scene, look || { brick: ++guestCount % 6 === 0 }); everyone.push(p); return p; };
+const spawn = (look) => { const p = makePerson(scene, look || { brick: ++guestCount % 2 === 0 }); everyone.push(p); return p; };
 const place = (p, x, z, yaw = 0) => { p.x = x; p.z = z; p.yaw = p.yawTo = yaw; p.root.position.set(x, 0, z); };
 
 const player = spawn({ style: 0, top: new THREE.MeshStandardMaterial({ color: 0x6366f1, roughness: 0.55 }), bottom: new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.7 }), skirt: false, height: 1 });
@@ -81,7 +81,7 @@ place(bouncer, -1.75, 11.15, 0.8); bouncer.crossTo = 1; bouncer.isStaff = true;
 const performers = [];
 const STAGE_Y = 1.15;
 function performer(look, x, z, armPose, y0 = STAGE_Y) {
-  const p = spawn({ skirt: false, ...look }); place(p, x, z, 0); p.isStaff = true; p.y0 = y0; p.armPose = armPose; performers.push(p);
+  const p = spawn({ skirt: false, brick: true, ...look }); place(p, x, z, 0); p.isStaff = true; p.y0 = y0; p.armPose = armPose; performers.push(p);
   return p;
 }
 if (!venue.band) {
@@ -919,4 +919,4 @@ phase = 'queue'; setupQueue(); setStep(1); renderUi();
 camSet(0.82, 1.46, 8.2, 2);
 
 // 시험용 접근점
-window.club = { edm, player, npcs, renderer, scene, camera, buddy: () => buddy, state: () => ({ phase, step, grooving, grooveBeats, hi5, mingling: mingling.length, sips: myDrink.sips, x: player.x, z: player.z, queue: queue.indexOf(player) }), clockNow: () => edm.clock() };
+window.club = { edm, player, npcs, everyone, performers, renderer, scene, camera, buddy: () => buddy, state: () => ({ phase, step, grooving, grooveBeats, hi5, mingling: mingling.length, sips: myDrink.sips, x: player.x, z: player.z, queue: queue.indexOf(player) }), clockNow: () => edm.clock() };
