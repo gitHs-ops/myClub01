@@ -1,6 +1,6 @@
 import * as THREE from './vendor/three.min.js';
 import { Edm, TRACKS } from './edm.js?v=6';
-import { makePerson, updatePerson, goTo, say, jump, setWardrobe } from './people.js?v=3';
+import { makePerson, updatePerson, goTo, say, jump, setWardrobe } from './people.js?v=4';
 import { buildWorld, ROOM, FLOOR, TABLES, BAR_SPOTS } from './world.js?v=4';
 import { VENUES } from './venues.js?v=1';
 import { listTracks, addTrack, putTrack, removeTrack, isAudioFile, titleOf, analyze } from './mylist.js?v=1';
@@ -55,7 +55,9 @@ const world = buildWorld(scene, fxState, venue);
 
 /* ───── 사람들 ───── */
 const everyone = [];
-const spawn = (look) => { const p = makePerson(scene, look); everyone.push(p); return p; };
+// 손님 여섯 명 중 한 명은 블록 캐릭터다
+let guestCount = 0;
+const spawn = (look) => { const p = makePerson(scene, look || { brick: ++guestCount % 6 === 0 }); everyone.push(p); return p; };
 const place = (p, x, z, yaw = 0) => { p.x = x; p.z = z; p.yaw = p.yawTo = yaw; p.root.position.set(x, 0, z); };
 
 const player = spawn({ style: 0, top: new THREE.MeshStandardMaterial({ color: 0x6366f1, roughness: 0.55 }), bottom: new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.7 }), skirt: false, height: 1 });

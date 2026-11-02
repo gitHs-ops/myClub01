@@ -28,6 +28,32 @@ const G = {
   blob: new THREE.CircleGeometry(0.42, 20),
   skirt: new THREE.CylinderGeometry(0.16, 0.25, 0.32, 16, 1, true),
 };
+/* 블록 캐릭터: 관절은 같고 부품만 각진 플라스틱이다 */
+const taper = (w, h, d, top) => {
+  const geo = new THREE.BoxGeometry(w, h, d), pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) if (pos.getY(i) > 0) pos.setX(i, pos.getX(i) * top);
+  geo.computeVertexNormals();
+  return geo;
+};
+const B = {
+  torso: taper(0.42, 0.6, 0.2, 0.78),
+  hips: new THREE.BoxGeometry(0.36, 0.2, 0.2),
+  neck: new THREE.CylinderGeometry(0.06, 0.06, 0.1, 10),
+  upArm: new THREE.BoxGeometry(0.1, UPARM, 0.1),
+  foreArm: new THREE.BoxGeometry(0.085, FOREARM, 0.085),
+  hand: new THREE.CylinderGeometry(0.052, 0.052, 0.08, 12),
+  thigh: new THREE.BoxGeometry(0.15, THIGH, 0.17),
+  shin: new THREE.BoxGeometry(0.13, SHIN, 0.15),
+  foot: new THREE.BoxGeometry(0.14, 0.07, 0.27),
+  headRound: new THREE.CylinderGeometry(0.135, 0.135, 0.24, 20),
+  headCube: new THREE.BoxGeometry(0.27, 0.27, 0.27),
+  stud: new THREE.CylinderGeometry(0.075, 0.075, 0.04, 16),
+  smallStud: new THREE.CylinderGeometry(0.035, 0.035, 0.022, 10),
+  smile: new THREE.TorusGeometry(0.036, 0.007, 5, 12, Math.PI),
+  hairTop: new THREE.BoxGeometry(0.3, 0.09, 0.3),
+  hairBack: new THREE.BoxGeometry(0.3, 0.2, 0.07),
+  hairRound: new THREE.CylinderGeometry(0.15, 0.15, 0.09, 20),
+};
 const std = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.62, ...o });
 const SKINS = [0xf4cdb0, 0xe9b98f, 0xd6a077, 0xf8dcc6, 0xb9845c].map((c) => std(c, { roughness: 0.55 }));
 let HAIRS = [0x17120f, 0x2c1d14, 0x53321c, 0x9a6c3d, 0x6a1d8a, 0x1f6fb5, 0xd9d5cf].map((c) => std(c, { roughness: 0.48 }));
@@ -42,6 +68,11 @@ export function setWardrobe(w) {
   if (!w) return;
   TOPS = w.tops.map((c) => std(c)); BOTTOMS = w.bottoms.map((c) => std(c, { roughness: 0.75 })); HAIRS = w.hairs.map((c) => std(c, { roughness: 0.48 }));
 }
+
+const plastic = (c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.26 });
+const BRICK_COLORS = [0xd01012, 0x0057a8, 0xf5cd2f, 0x00852b, 0xfe8a18, 0xf5f5f5, 0x1b1b1f, 0x5c2d91, 0x00a3da, 0xe4adc8].map(plastic);
+const BRICK_YELLOW = plastic(0xf7c600), BRICK_SKINS = [0xf4cdb0, 0xd6a077, 0xb9845c, 0x8d5a34].map(plastic), BRICK_HAIRS = [0x1b1b1f, 0x5a3417, 0xc98a2b, 0xd01012].map(plastic);
+const M_FACE = new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.3 });
 
 const add = (geo, mat, x, y, z, parent) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); parent.add(m); return m; };
 
@@ -63,25 +94,44 @@ function drawBubble(s, text) {
 }
 
 export function makePerson(scene, look = {}) {
-  const skin = look.skin || pick(SKINS), hairM = look.hair || pick(HAIRS), top = look.top || pick(TOPS), bottom = look.bottom || pick(BOTTOMS), shoe = look.shoe || pick(SHOES);
+  const brick = !!look.brick, round = brick && Math.random() < 0.55;   // 둥근 머리(미니 피규어)와 네모 머리(비트 인형)
+  const P = brick ? { ...G, ...B } : G;
+  const skin = look.skin || (brick ? (round ? BRICK_YELLOW : pick(BRICK_SKINS)) : pick(SKINS)), hairM = look.hair || (brick ? pick(BRICK_HAIRS) : pick(HAIRS));
+  const top = look.top || (brick ? pick(BRICK_COLORS) : pick(TOPS)), bottom = look.bottom || (brick ? pick(BRICK_COLORS) : pick(BOTTOMS)), shoe = look.shoe || (brick ? bottom : pick(SHOES));
   const style = look.style ?? Math.floor(Math.random() * 5), scaleH = look.height ?? rand(0.93, 1.05);
   const root = new THREE.Group(), hips = new THREE.Group(); root.add(hips);
   root.scale.setScalar(scaleH);
   const blob = add(G.blob, M_BLOB, 0, 0.012, 0, root); blob.rotation.x = -Math.PI / 2;
   hips.position.y = HIP_Y;
-  add(G.hips, bottom, 0, 0.02, 0, hips);
-  if (look.skirt ?? Math.random() < 0.22) add(G.skirt, bottom, 0, -0.17, 0, hips);
+  add(P.hips, bottom, 0, 0.02, 0, hips);
+  if (!brick && (look.skirt ?? Math.random() < 0.22)) add(G.skirt, bottom, 0, -0.17, 0, hips);
   const torso = new THREE.Group(); torso.position.y = 0.08; hips.add(torso);
-  const chest = add(G.torso, top, 0, 0.25, 0, torso); chest.scale.z = 0.72;
-  add(G.neck, skin, 0, 0.55, 0, torso);
+  const chest = add(P.torso, top, 0, 0.25, 0, torso); if (!brick) chest.scale.z = 0.72;
+  add(P.neck, skin, 0, 0.55, 0, torso);
+  if (brick) [-1, 1].forEach((s) => { add(B.smallStud, top, s * 0.08, 0.561, 0, torso); });
   const head = new THREE.Group(); head.position.y = 0.69; torso.add(head);
-  add(G.head, skin, 0, 0, 0, head);
-  [-1, 1].forEach((s) => add(G.eye, M_EYE, s * 0.052, 0.01, 0.125, head));
-  if (style === 0) { const h = add(G.hairShort, hairM, 0, 0.012, -0.012, head); h.rotation.x = -0.32; }
-  else if (style === 1) { const h = add(G.hairBob, hairM, 0, 0.01, -0.03, head); h.rotation.x = -0.72; }
-  else if (style === 2) { const h = add(G.hairShort, hairM, 0, 0.012, -0.012, head); h.rotation.x = -0.32; add(G.hairLong, hairM, 0, -0.14, -0.1, head); }
-  else if (style === 3) { const h = add(G.hairShort, hairM, 0, 0.012, -0.012, head); h.rotation.x = -0.32; add(G.bun, hairM, 0, 0.13, -0.09, head); }
-  else { const h = add(G.hairShort, hairM, 0, 0.005, -0.012, head); h.rotation.x = -0.32; add(G.cap, top, 0, 0.1, 0, head); add(G.brim, top, 0, 0.076, 0.13, head); }
+  if (brick) {
+    add(round ? B.headRound : B.headCube, skin, 0, 0, 0, head);
+    const faceZ = round ? 0.134 : 0.136;
+    [-1, 1].forEach((s) => add(G.eye, M_FACE, s * 0.052, 0.025, faceZ, head));
+    const m = add(B.smile, M_FACE, 0, -0.025, faceZ, head); m.rotation.z = Math.PI;
+    const hairKind = Math.floor(Math.random() * 3);
+    if (round) {
+      if (hairKind === 0) add(B.stud, skin, 0, 0.14, 0, head);                // 머리 위 돌기만
+      else { add(B.hairRound, hairM, 0, 0.14, -0.01, head); add(B.stud, hairM, 0, 0.2, -0.01, head); if (hairKind === 2) add(B.hairBack, hairM, 0, 0.02, -0.12, head); }
+    } else {
+      add(B.hairTop, hairM, 0, 0.17, 0, head);
+      if (hairKind) add(B.hairBack, hairM, 0, 0.04, -0.125, head);
+    }
+  } else {
+    add(G.head, skin, 0, 0, 0, head);
+    [-1, 1].forEach((s) => add(G.eye, M_EYE, s * 0.052, 0.01, 0.125, head));
+    if (style === 0) { const h = add(G.hairShort, hairM, 0, 0.012, -0.012, head); h.rotation.x = -0.32; }
+    else if (style === 1) { const h = add(G.hairBob, hairM, 0, 0.01, -0.03, head); h.rotation.x = -0.72; }
+    else if (style === 2) { const h = add(G.hairShort, hairM, 0, 0.012, -0.012, head); h.rotation.x = -0.32; add(G.hairLong, hairM, 0, -0.14, -0.1, head); }
+    else if (style === 3) { const h = add(G.hairShort, hairM, 0, 0.012, -0.012, head); h.rotation.x = -0.32; add(G.bun, hairM, 0, 0.13, -0.09, head); }
+    else { const h = add(G.hairShort, hairM, 0, 0.005, -0.012, head); h.rotation.x = -0.32; add(G.cap, top, 0, 0.1, 0, head); add(G.brim, top, 0, 0.076, 0.13, head); }
+  }
   if (look.phones) {
     const band = add(new THREE.TorusGeometry(0.15, 0.014, 6, 18, Math.PI), M_PHONES, 0, 0.01, 0, head); void band;
     [-1, 1].forEach((s) => { const e = add(new THREE.CylinderGeometry(0.052, 0.052, 0.035, 12), M_PHONES, s * 0.145, 0, 0, head); e.rotation.z = Math.PI / 2; });
@@ -89,21 +139,21 @@ export function makePerson(scene, look = {}) {
   const arms = {};
   [-1, 1].forEach((s) => {
     const a = new THREE.Group(); a.position.set(s * 0.215, 0.44, 0); torso.add(a);
-    add(G.upArm, top, 0, -UPARM / 2, 0, a);
+    add(P.upArm, top, 0, -UPARM / 2, 0, a);
     const e = new THREE.Group(); e.position.y = -UPARM; a.add(e);
-    add(G.foreArm, skin, 0, -FOREARM / 2, 0, e);
+    add(P.foreArm, brick ? top : skin, 0, -FOREARM / 2, 0, e);
     const h = new THREE.Group(); h.position.y = -FOREARM; e.add(h);
-    add(G.hand, skin, 0, -0.02, 0, h);
+    add(P.hand, skin, 0, -0.02, 0, h);
     arms[s] = { a, e, h };
   });
   const legs = {};
   [-1, 1].forEach((s) => {
     const t = new THREE.Group(); t.position.set(s * 0.095, -0.02, 0); hips.add(t);
-    add(G.thigh, bottom, 0, -THIGH / 2, 0, t);
+    add(P.thigh, bottom, 0, -THIGH / 2, 0, t);
     const k = new THREE.Group(); k.position.y = -THIGH; t.add(k);
-    add(G.shin, bottom, 0, -SHIN / 2, 0, k);
+    add(P.shin, bottom, 0, -SHIN / 2, 0, k);
     const f = new THREE.Group(); f.position.y = -SHIN; k.add(f);
-    add(G.foot, shoe, 0, -0.03, 0.05, f);
+    add(P.foot, shoe, 0, -0.03, 0.05, f);
     legs[s] = { t, k, f };
   });
   const bubble = bubbleSprite(); bubble.position.y = 2.08 / scaleH; root.add(bubble);
