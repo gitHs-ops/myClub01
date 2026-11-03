@@ -288,15 +288,16 @@ const onFloor = () => player.x > FLOOR.xMin && player.x < FLOOR.xMax && player.z
 const LINE_X = (i) => 1.15 + i * 1.02, LINE_Z = 11.55;
 function setupQueue() {
   queue = [];
-  for (let i = 0; i < 5; i++) {
+  const AHEAD = 2;   // 처음 내 앞 대기 인원
+  for (let i = 0; i < AHEAD; i++) {
     const p = spawn(); p.inLine = true; p.lineChat = rand(2, 9); place(p, LINE_X(i), LINE_Z, -Math.PI / 2 + rand(-0.15, 0.15));
     p.danceStyle = 0; p.groove = 0.32; p.danceTo = 1;
     if (i % 2 === 0) { p.crossTo = 0; p.talkTo = 0.6; }
     queue.push(p);
   }
   queue.push(player); player.inLine = true; player.free = true;
-  place(player, LINE_X(5), LINE_Z, -Math.PI / 2);
-  for (let i = 6; i < 8; i++) { const p = spawn(); p.inLine = true; place(p, LINE_X(i) + 4, LINE_Z, -Math.PI / 2); p.danceStyle = 0; p.groove = 0.32; p.danceTo = 0; p.lineChat = rand(5, 12); queue.push(p); }
+  place(player, LINE_X(AHEAD), LINE_Z, -Math.PI / 2);
+  for (let i = AHEAD + 1; i < AHEAD + 3; i++) { const p = spawn(); p.inLine = true; place(p, LINE_X(i) + 4, LINE_Z, -Math.PI / 2); p.danceStyle = 0; p.groove = 0.32; p.danceTo = 0; p.lineChat = rand(5, 12); queue.push(p); }
   layQueue();
   queueTimer = 3.4;
 }
