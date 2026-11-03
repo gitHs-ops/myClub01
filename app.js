@@ -1,7 +1,7 @@
 import * as THREE from './vendor/three.min.js';
 import { Edm, TRACKS } from './edm.js?v=6';
 import { makePerson, updatePerson, goTo, say, jump, setWardrobe } from './people.js?v=5';
-import { buildWorld, ROOM, FLOOR, TABLES, BAR_SPOTS } from './world.js?v=5';
+import { buildWorld, ROOM, FLOOR, TABLES, BAR_SPOTS } from './world.js?v=6';
 import { VENUES } from './venues.js?v=2';
 import { listTracks, addTrack, putTrack, removeTrack, isAudioFile, titleOf, analyze } from './mylist.js?v=1';
 
@@ -78,6 +78,13 @@ dest.rotation.x = -Math.PI / 2; dest.position.y = 0.045; dest.visible = false; s
 
 const bouncer = spawn({ style: 0, top: new THREE.MeshStandardMaterial({ color: 0x0b0b10, roughness: 0.6 }), bottom: new THREE.MeshStandardMaterial({ color: 0x0b0b10, roughness: 0.6 }), skirt: false, height: 1.1 });
 place(bouncer, -1.75, 11.15, 0.8); bouncer.crossTo = 1; bouncer.isStaff = true;
+/* 웨이터: 다른 테이블로 보낸 술을 쟁반에 받쳐 가져간다 */
+const WAITER_HOME = [9.4, 3.2];
+const waiter = spawn({ style: 0, top: new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.6 }), bottom: new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.6 }), skirt: false, height: 1.02 });
+place(waiter, WAITER_HOME[0], WAITER_HOME[1], -Math.PI / 2); waiter.isStaff = true; waiter.speed = 2.6;
+const tray = new THREE.Group(); scene.add(tray);
+tray.add(new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.015, 24), new THREE.MeshStandardMaterial({ color: 0xc0c4cc, roughness: 0.25, metalness: 0.8 })));
+tray.visible = false;
 const performers = [];
 const STAGE_Y = 1.15;
 function performer(look, x, z, armPose, y0 = STAGE_Y) {
@@ -420,13 +427,14 @@ function walkToTable(T) {
 }
 function openDrinks(offer = false) {
   const box = $('drinkList'); box.textContent = '';
-  $('drinkTitle').textContent = offer ? '무엇을 권할까요?' : '음료·주류 고르기';
-  $('drinkDesc').textContent = offer ? '같이 온 분의 잔으로 가져다 드립니다.' : '테이블로 가져다 드립니다.';
+  const send = offer && offer.send;
+  $('drinkTitle').textContent = send ? `${send.i + 1}번 테이블에 무엇을 보낼까요?` : offer ? '무엇을 권할까요?' : '음료·주류 고르기';
+  $('drinkDesc').textContent = send ? '그 테이블 손님 모두에게 한 잔씩 갑니다.' : offer ? '같이 온 분의 잔으로 가져다 드립니다.' : '테이블로 가져다 드립니다.';
   DRINKS.forEach((d) => {
     const b = document.createElement('button'); b.className = 'listBtn';
     const s = document.createElement('span'); s.className = 'swatch'; s.style.background = `#${d.color.toString(16).padStart(6, '0')}`;
     const t = document.createElement('span'); const st = document.createElement('strong'); st.textContent = d.name; const sm = document.createElement('small'); sm.textContent = d.desc; t.append(st, sm);
-    b.append(s, t); b.onclick = () => { closeModals(); if (offer) offerDrink(d); else orderDrink(d); };
+    b.append(s, t); b.onclick = () => { closeModals(); if (send) sendDrink(send, d); else if (offer) offerDrink(d); else orderDrink(d); };
     box.append(b);
   });
   $('drinkModal').hidden = false;
@@ -469,6 +477,54 @@ function offerDrink(d) {
       n.sipTo = 0; n.yawTo = Math.atan2(player.x - n.x, player.z - n.z);
       if (n.cup) n.cup.userData.fluid.scale.y = 0.8;
       offering = false; renderUi();
+    });
+  });
+}
+/* 다른 테이블로 한 잔 보내기 */
+let sending = false;
+const guestsAt = (T) => npcs.filter((n) => n.role === 'table' && !n.target && Math.hypot(n.x - T.x, n.z - T.z) < 1.3);
+function openSend() {
+  const box = $('drinkList'); box.textContent = '';
+  $('drinkTitle').textContent = '어느 테이블로 보낼까요?';
+  $('drinkDesc').textContent = '테이블 위 번호를 보고 고르세요. 웨이터가 가져다 드립니다.';
+  TABLES.forEach((T) => {
+    const mine = T === myTable && inTableReach(), g = mine ? [] : guestsAt(T);
+    const b = document.createElement('button'); b.className = 'listBtn'; b.disabled = !g.length;
+    const s = document.createElement('span'); s.className = 'swatch tableNo'; s.textContent = T.i + 1;
+    const t = document.createElement('span'); const st = document.createElement('strong'); st.textContent = `${T.i + 1}번 테이블`;
+    const sm = document.createElement('small'); sm.textContent = mine ? '내 테이블' : g.length ? `손님 ${g.length}명` : '비어 있음'; t.append(st, sm);
+    b.append(s, t); b.onclick = () => openDrinks({ send: T });
+    box.append(b);
+  });
+  $('drinkModal').hidden = false;
+}
+function sendDrink(T, d) {
+  const g = guestsAt(T);
+  if (!g.length || sending) return;
+  sending = true; renderUi();
+  toast(`${T.i + 1}번 테이블로 ${d.name} ${g.length}잔을 주문했습니다`, 2.4);
+  // 쟁반 위 잔
+  tray.children.slice(1).forEach((c) => tray.remove(c));
+  g.forEach((n, i) => { const c = makeCup(d); scene.remove(c); c.position.set(Math.sin(i * 2.1) * 0.09, 0.08 * (d.glass?.[1] || 1), Math.cos(i * 2.1) * 0.09); tray.add(c); });
+  const k = Math.atan2(player.x - T.x, player.z - T.z) + 1.6, sx = T.x + Math.sin(k) * 0.95, sz = T.z + Math.cos(k) * 0.95;
+  later(1.2, () => {
+    waiter.showIdTo = 1; tray.visible = true;
+    goTo(waiter, sx, sz, () => {
+      waiter.yawTo = Math.atan2(T.x - waiter.x, T.z - waiter.z);
+      say(waiter, '저쪽 손님이 보내셨습니다', 2.2);
+      later(1.2, () => {
+        tray.visible = false; waiter.showIdTo = 0; edm.clink();
+        g.forEach((n) => { n.cup?.parent?.remove(n.cup); npcCups(n, d); n.nextAct = now() + 14; n.yawTo = Math.atan2(player.x - n.x, player.z - n.z); n.talkTo = 0; });
+        later(0.9, () => {
+          say(g[0], pick(venue.band ? [`${T.i + 1}번 테이블, 잘 마실게요!`, '고맙습니다! 위하여!'] : [`${T.i + 1}번 테이블, 땡큐!`, '잘 마실게요! 건배!']), 2.4);
+          g.forEach((n, i) => { n.waveTo = 1; later(1.4, () => { n.waveTo = 0; later(0.3 + i * 0.2, () => { n.sipTo = 1; later(1.5, () => { n.sipTo = 0; }); }); }); });
+          toast(`${T.i + 1}번 테이블에서 고맙다고 손을 흔듭니다`, 2.6);
+          say(player, venue.band ? '위하여!' : '건배!', 1.4);
+          if (myDrink.cup && myDrink.level > 0 && inTableReach() && !player.sipTo) later(1.6, sip);
+        });
+        later(2, () => { sending = false; renderUi(); });
+        goTo(waiter, WAITER_HOME[0], WAITER_HOME[1], () => { waiter.yawTo = -Math.PI / 2; });
+      });
     });
   });
 }
@@ -588,6 +644,7 @@ function renderUi() {
     if (myDrink.level > 0) list.push({ label: player.sipTo ? '마시는 중' : `한 모금 마시기 (${Math.round(myDrink.level * 100)}%)`, primary: step === 3, disabled: !!player.sipTo, fn: sip });
     else list.push({ label: '한 잔 더', fn: () => openDrinks() });
   }
+  if (step >= 3 && !player.target) list.push({ label: sending ? '보내는 중' : '다른 테이블에 한 잔 보내기', disabled: sending, fn: openSend });
   if (atTable && buddyHere()) list.push({ label: offering ? '권하는 중' : '같이 온 분에게 권하기', disabled: offering, fn: () => openDrinks(true) });
   if (myDrink.sips > 0 || step >= 4) {
     list.push({ label: grooving ? '건들거리기 멈추기' : '건들거리기', primary: step === 4 && !grooving, on: grooving, fn: toggleGroove });
@@ -876,6 +933,7 @@ function frame(nowMs) {
     }
   }
   for (const p of everyone) if (p.cup) holdCup(p, p.cup);
+  if (tray.visible) { waiter.arms[1].h.getWorldPosition(tray.position); tray.position.y += 0.02; }
   if (phase === 'room' && (clock.section.name === 'drop')) crowdBeat(clock); else crowdBeat.last = -1;
   if (clock.section.name !== 'drop') dropSeen = -1;
 
@@ -951,4 +1009,4 @@ phase = 'queue'; setupQueue(); setStep(1); renderUi();
 camSet(0.82, 1.46, 8.2, 2);
 
 // 시험용 접근점
-window.club = { edm, player, npcs, everyone, performers, renderer, scene, camera, buddy: () => buddy, state: () => ({ phase, step, grooving, grooveBeats, hi5, mingling: mingling.length, sips: myDrink.sips, x: player.x, z: player.z, queue: queue.indexOf(player) }), clockNow: () => edm.clock() };
+window.club = { edm, player, npcs, waiter, tray, TABLES, everyone, performers, renderer, scene, camera, buddy: () => buddy, state: () => ({ phase, step, grooving, grooveBeats, hi5, mingling: mingling.length, sips: myDrink.sips, x: player.x, z: player.z, queue: queue.indexOf(player) }), clockNow: () => edm.clock() };

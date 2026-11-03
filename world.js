@@ -429,6 +429,16 @@ export function buildWorld(scene, fxState, theme) {
     const ring = add(new THREE.TorusGeometry(0.42, 0.012, 6, 36), glow(0x22d3ee), T.x, 1.06, T.z, inside); ring.rotation.x = Math.PI / 2;
     tableRings.push(ring);
     flare(0x22d3ee, 1.4, T.x, 1.03, T.z, inside, 0.22);
+    // 테이블 번호: 탁자 위 번호판 (어느 쪽에서 봐도 읽힌다)
+    const nc = document.createElement('canvas'); nc.width = nc.height = 128;
+    const ng = nc.getContext('2d');
+    ng.fillStyle = theme.band ? '#3a2212' : '#0f0f1a'; ng.beginPath(); ng.arc(64, 64, 58, 0, 7); ng.fill();
+    ng.lineWidth = 7; ng.strokeStyle = theme.band ? '#ffc77a' : '#22d3ee'; ng.stroke();
+    ng.fillStyle = '#ffffff'; ng.font = '800 70px Outfit, Pretendard, sans-serif'; ng.textAlign = 'center'; ng.textBaseline = 'middle'; ng.fillText(String(T.i + 1), 64, 68);
+    const nt = new THREE.CanvasTexture(nc); nt.colorSpace = THREE.SRGBColorSpace;
+    const num = new THREE.Sprite(new THREE.SpriteMaterial({ map: nt, transparent: true, toneMapped: false }));
+    num.scale.set(0.24, 0.24, 1); num.position.set(T.x, 1.3, T.z); inside.add(num);
+    add(new THREE.CylinderGeometry(0.008, 0.008, 0.12, 6), legM, T.x, 1.15, T.z, inside);
   }
 
   // 바

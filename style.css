@@ -166,3 +166,6 @@ h3 { margin: 14px 0 8px; font-size: 14px; font-weight: 700; }
 }
 
 .srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.swatch.tableNo { display: grid; place-items: center; color: #fff; background: #1e1b4b; font: 800 16px var(--font-accent); }
+.listBtn:disabled { opacity: .45; cursor: default; }
