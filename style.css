@@ -164,3 +164,5 @@ h3 { margin: 14px 0 8px; font-size: 14px; font-weight: 700; }
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition-duration: .01ms !important; }
 }
+
+.srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
