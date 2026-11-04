@@ -93,7 +93,7 @@ canvas#scene:active { cursor: grabbing; }
 .gateWrap .lead { color: #e2e8f0; }
 .gateWrap .kicker { color: #fbcfe8; }
 .gateWrap .note { color: #cbd5e1; }
-.venueCards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.venueCards { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
 .venueCard { padding: 22px; display: flex; flex-direction: column; text-align: left; }
 .venueCard:nth-child(2) { animation-delay: .08s; }
 .venueCard h2 { margin: 2px 0 8px; font: 800 26px var(--font-accent); letter-spacing: -0.3px; }
@@ -191,7 +191,7 @@ body.noGuide #caption, body.noGuide #gCaption, body.noGuide .sCue { display: non
 .venueCard:nth-child(4) { animation-delay: .24s; }
 .venueCard.jazz .vTag { color: #1d4ed8; }
 .venueCard.jazz .btn.primary { background: linear-gradient(135deg, #1e3a8a, #7c2d12); box-shadow: 0 12px 28px rgba(30, 58, 138, .38); }
-@media (max-width: 1100px) and (min-width: 721px) { .venueCards { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 1240px) and (min-width: 721px) { .venueCards { grid-template-columns: repeat(3, 1fr); } }
 
 /* 재즈 바: 합석 요청, 대화창 */
 #joinAsk { position: fixed; left: 50%; bottom: 128px; transform: translateX(-50%); width: min(360px, 92vw); padding: 18px 20px 6px; z-index: 11; animation: fade .25s ease both; }
@@ -213,3 +213,13 @@ body.noGuide #caption, body.noGuide #gCaption, body.noGuide .sCue { display: non
 #chatInput { flex: 1; min-width: 0; padding: 9px 12px; border-radius: 12px; border: 1px solid var(--field-border); background: var(--field-bg); font: 13px var(--font-main); color: var(--text-primary); }
 @media (max-width: 720px) { #chatPanel { right: 3vw; bottom: 150px; max-height: 46dvh; } #joinAsk { bottom: 170px; } }
 #chatInput { user-select: text; -webkit-user-select: text; }
+
+.venueCard:nth-child(5) { animation-delay: .32s; }
+.venueCard.lp h2 { font-family: "Nanum Myeongjo", "Batang", serif; font-weight: 800; }
+.venueCard.lp .vTag { color: #92400e; }
+.venueCard.lp .btn.primary { background: linear-gradient(135deg, #78350f, #44403c); box-shadow: 0 12px 28px rgba(120, 53, 15, .38); }
+#reqList { display: grid; gap: 8px; margin-bottom: 12px; max-height: 46dvh; overflow: auto; }
+.gateWrap { width: min(1240px, 100%); }
+.venueCard { padding: 20px 18px; }
+.venueCard h2 { font-size: 22px; }
+.venueCard .btn.big { font-size: 15px; padding: 13px 10px; white-space: nowrap; }

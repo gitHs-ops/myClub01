@@ -103,6 +103,22 @@ export const TRACKS = [
     chords: [[57, 60, 64, 67], [50, 54, 57, 60], [55, 59, 62, 66], [48, 52, 55, 59]], bass: [45, 38, 43, 36],
     melody: [4, 0, 0, 3, 0, 0, 4, 0, 5, 0, 0, 0, 4, 0, 0, 0, 3, 0, 0, 2, 0, 0, 3, 0, 1, 0, 0, 0, 0, 0, 0, 0],
   },
+  /* LP 바: 직접 지은 곡을 낡은 레코드처럼 (지직 소리와 따뜻한 고음 감쇠) */
+  {
+    id: 'lp_soul', venue: 'lp', style: 'band', feel: 'gogo', vinyl: true, name: '빗물 소울', desc: '98 BPM · 오래된 소울 LP', bpm: 98,
+    chords: [[50, 53, 57], [55, 59, 62], [52, 55, 59], [57, 61, 64]], bass: [38, 43, 40, 45],
+    melody: [3, 0, 4, 0, 5, 0, 0, 4, 3, 0, 0, 0, 2, 0, 0, 0, 3, 0, 0, 4, 5, 0, 6, 0, 5, 0, 4, 0, 0, 0, 0, 0],
+  },
+  {
+    id: 'lp_blues', venue: 'lp', style: 'band', jazz: 'swing', vinyl: true, name: '새벽 세 시 블루스', desc: '92 BPM · 셔플 블루스 LP', bpm: 92,
+    chords: [[48, 52, 55, 58], [53, 57, 60, 63], [48, 52, 55, 58], [55, 59, 62, 65]], bass: [36, 41, 36, 43],
+    melody: [4, 0, 0, 3, 4, 0, 0, 0, 2, 0, 1, 0, 0, 0, 0, 0, 4, 0, 5, 0, 4, 0, 3, 0, 2, 0, 0, 0, 0, 0, 0, 0],
+  },
+  {
+    id: 'lp_chanson', venue: 'lp', style: 'band', jazz: 'ballad', vinyl: true, name: '낡은 샹송', desc: '70 BPM · 샹송풍 발라드 LP', bpm: 70,
+    chords: [[57, 60, 64, 67], [50, 53, 57, 60], [55, 59, 62, 65], [48, 52, 55, 59]], bass: [45, 38, 43, 36],
+    melody: [5, 0, 0, 4, 3, 0, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0, 3, 0, 4, 0, 5, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0],
+  },
 ];
 
 /* 곡 구성(마디). energy는 조명과 군중의 흥에 쓴다 */
@@ -151,7 +167,9 @@ export class Edm {
     this.room = ctx.createBiquadFilter(); this.room.type = 'lowpass'; this.room.frequency.value = 340; this.room.Q.value = 0.7;
     this.roomGain = ctx.createGain(); this.roomGain.gain.value = 0.55;
     this.music = ctx.createGain();
-    this.music.connect(this.room); this.room.connect(this.roomGain); this.roomGain.connect(comp); comp.connect(this.master);
+    // LP: 고음을 깎아 따뜻하게 (평소에는 그대로 통과)
+    this.tone = ctx.createBiquadFilter(); this.tone.type = 'lowpass'; this.tone.frequency.value = 20000; this.tone.Q.value = 0.5;
+    this.music.connect(this.tone); this.tone.connect(this.room); this.room.connect(this.roomGain); this.roomGain.connect(comp); comp.connect(this.master);
     this.master.connect(this.analyser); this.analyser.connect(ctx.destination);
     this.sfx = ctx.createGain(); this.sfx.gain.value = 0.9; this.sfx.connect(this.master);
 
@@ -172,6 +190,11 @@ export class Edm {
     const sf = ctx.createBiquadFilter(); sf.type = 'lowpass'; sf.frequency.value = 420;
     this.streetGain = ctx.createGain(); this.streetGain.gain.value = 0.06;
     street.connect(sf); sf.connect(this.streetGain); this.streetGain.connect(this.master); street.start();
+    // 바늘 소리: LP 곡에서만 들린다
+    const hiss = ctx.createBufferSource(); hiss.buffer = buf; hiss.loop = true;
+    const hf = ctx.createBiquadFilter(); hf.type = 'bandpass'; hf.frequency.value = 3800; hf.Q.value = 0.4;
+    this.hissGain = ctx.createGain(); this.hissGain.gain.value = 0;
+    hiss.connect(hf); hf.connect(this.hissGain); this.hissGain.connect(this.room); hiss.start();
 
     this.t0 = ctx.currentTime + 0.12; this.nextStep = 0; this.started = true;
     this.applyTrack();
@@ -186,7 +209,7 @@ export class Edm {
     return b;
   }
 
-  applyTrack() { this.form = this.track.style === 'band' ? FORM_BAND : FORM; if (this.duck && this.track.style === 'band') { this.duck.gain.cancelScheduledValues(0); this.duck.gain.value = 1; } this.spb = 60 / this.track.bpm; this.spStep = this.spb / 4; if (this.echo) this.echo.delayTime.value = this.spb * 0.75; }
+  applyTrack() { if (this.tone) { const vin = !!this.track.vinyl || !!this.vinylAlways; this.tone.frequency.value = vin ? 5600 : 20000; this.hissGain.gain.value = vin ? 0.012 : 0; } this.form = this.track.style === 'band' ? FORM_BAND : FORM; if (this.duck && this.track.style === 'band') { this.duck.gain.cancelScheduledValues(0); this.duck.gain.value = 1; } this.spb = 60 / this.track.bpm; this.spStep = this.spb / 4; if (this.echo) this.echo.delayTime.value = this.spb * 0.75; }
 
   /* 곡을 바꾸면 박자를 이어 가도록 현재 시각에서 다시 센다 */
   setTrack(id) {
@@ -489,7 +512,14 @@ export class Edm {
     g.connect(this.echo); g.connect(this.verb);
   }
 
+  /* 판 긁히는 소리 */
+  crackle(t) {
+    if (Math.random() < 0.22) this.noise(t + Math.random() * this.spStep, 0.004 + Math.random() * 0.006, 'highpass', 1800, 0.05 + Math.random() * 0.16, 0.7);
+    if (Math.random() < 0.015) this.noise(t, 0.02, 'lowpass', 900, 0.25, 0.7);
+  }
+
   playStep(step, t) {
+    if (this.track.vinyl || this.vinylAlways) this.crackle(t);
     if (this.track.style === 'band') { this.playBand(step, t); return; }
     const T = this.track, s16 = step % 16, bar = Math.floor(step / 16), sec = sectionAt(bar, this.form), name = sec.name;
     const chordI = Math.floor(bar / 2) % T.chords.length, chord = T.chords[chordI], root = T.bass[chordI];
@@ -671,6 +701,7 @@ export class Edm {
     if (!this.started) return; const t = this.ctx.currentTime;
     for (const [f, d] of [[2300, 0], [3150, 0.06], [2700, 0.13]]) { const g = this.voice(t + d, f, 0.1, 0.05, 'sine', [0], this.sfx); void g; }
   }
+  scratch() { if (!this.started) return; const t = this.ctx.currentTime; this.noise(t, 0.25, 'bandpass', 1400, 0.25, 3, this.sfx); this.noise(t + 0.3, 0.05, 'lowpass', 700, 0.4, 0.7, this.sfx); }
   sip() { if (!this.started) return; const t = this.ctx.currentTime; this.noise(t, 0.3, 'bandpass', 2600, 0.09, 2, this.sfx); }
   highFive() { if (!this.started) return; const t = this.ctx.currentTime; this.noise(t, 0.08, 'bandpass', 2400, 0.95, 0.7, this.sfx); }
 }

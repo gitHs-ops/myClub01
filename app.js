@@ -1,8 +1,8 @@
 import * as THREE from './vendor/three.min.js';
-import { Edm, TRACKS } from './edm.js?v=7';
+import { Edm, TRACKS } from './edm.js?v=8';
 import { makePerson, updatePerson, goTo, say, jump, setWardrobe } from './people.js?v=9';
-import { buildWorld, ROOM, FLOOR, TABLES, BAR_SPOTS } from './world.js?v=13';
-import { VENUES } from './venues.js?v=4';
+import { buildWorld, ROOM, FLOOR, TABLES, BAR_SPOTS } from './world.js?v=14';
+import { VENUES } from './venues.js?v=5';
 import { listTracks, addTrack, putTrack, removeTrack, isAudioFile, titleOf, analyze, isLrcFile, readText, decodeText, lyricLines, id3Lyrics } from './mylist.js?v=2';
 
 const $ = (id) => document.getElementById(id);
@@ -21,7 +21,7 @@ const later = (sec, f) => setTimeout(f, sec * 1000);
 
 /* ───── 설정 ───── */
 const KEY = 'clubpulse.v1';
-const settings = Object.assign({ allFollow: false, autoNext: true, volume: 80, tracks: { club: 'neon', live7080: 'gogo', jazz: 'swing' }, lowFx: matchMedia('(prefers-reduced-motion: reduce)').matches }, (() => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } })());
+const settings = Object.assign({ allFollow: false, autoNext: true, volume: 80, tracks: { club: 'neon', live7080: 'gogo', jazz: 'swing', lp: 'lp_soul' }, lowFx: matchMedia('(prefers-reduced-motion: reduce)').matches }, (() => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } })());
 const saveSettings = () => { try { localStorage.setItem(KEY, JSON.stringify(settings)); } catch { /* 사생활 모드 */ } };
 const fxState = { full: !settings.lowFx };
 
@@ -40,7 +40,8 @@ const venue = await new Promise((resolve) => {
   });
 });
 document.title = venue.title;
-if (venue.jazz) { const li = document.querySelector('#steps li[data-step="5"] span'); if (li) li.textContent = '블루스'; }
+if (venue.jazz) { const li = document.querySelector('#steps li[data-step="5"] span'); if (li) li.textContent = venue.lp ? '신청곡' : '블루스'; }
+if (venue.lp) edm.vinylAlways = true;   // 내 음원도 판처럼
 setWardrobe(venue.wardrobe);
 
 /* ───── 렌더러 ───── */
@@ -134,7 +135,7 @@ const tray = new THREE.Group(); scene.add(tray);
 tray.add(new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.015, 24), new THREE.MeshStandardMaterial({ color: 0xc0c4cc, roughness: 0.25, metalness: 0.8 })));
 tray.visible = false;
 const performers = [];
-let drummerSticks = [], drummerRef = null, celloBow = null;
+let drummerSticks = [], drummerRef = null, celloBow = null, lpOwner = null, lpSwapUntil = 0;
 // 박자 안에서 스틱이 들린 정도: 0이면 북을 친 순간 [왼손, 오른손]
 const drumLift = (b) => { const r = (b * 2) % 1, l = ((b + 1) % 2) / 2; return [Math.sin(Math.PI * Math.min(1, l * 1.4)) * (l < 0.72 ? 1 : 0), Math.sin(Math.PI * r)]; };
 const stickA = new THREE.Vector3(), stickB = new THREE.Vector3(), stickUp = new THREE.Vector3(0, 1, 0), stickQ = new THREE.Quaternion();
@@ -155,7 +156,14 @@ if (!venue.band) {
     p.torso.add(g);
   };
   const strum = (b) => { const k = Math.sin(b * Math.PI * 2); return [[-0.45, 0.35, 0.6, -2.0], [0.02 + k * 0.08, 0.35, -0.8, -1.4 + k * 0.22]]; };
-  if (venue.jazz) {
+  if (venue.lp) {
+    const M = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.5, ...o });
+    // 사장님: 희끗한 머리, 조끼. 평소엔 판을 고르고, 신청곡이 오면 판을 바꿔 건다
+    lpOwner = performer({ style: 0, top: M(0x5a3a1e), bottom: M(0x2a1c12), hair: M(0xc9c5bf), height: 1.02 }, 0, -20.05, (b, t) => {
+      const sw = now() < lpSwapUntil ? Math.sin((lpSwapUntil - now()) * 3) : 0, pick2 = Math.sin(t * 0.4) > 0.6 ? 1 : 0;
+      return [[-0.75 - Math.abs(sw) * 0.4, 0.42, -0.25, -1.25], [-0.55 - pick2 * 0.25 - Math.abs(sw) * 0.5, 0.3, -0.25, -1.4 + pick2 * 0.2]];
+    });
+  } else if (venue.jazz) {
     const M = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.45, ...o });
     // 재즈 싱어: 붉은 드레스, 오른손은 스탠드 마이크에, 왼손은 노래에 맞춰 천천히
     const singer = performer({ style: 1, top: M(0xa3122a, { roughness: 0.3 }), bottom: M(0xa3122a, { roughness: 0.3 }), shoe: M(0x111111), height: 1 }, 0, -18.45, (b) => {
@@ -201,6 +209,7 @@ if (!venue.band) {
     // 건반: 연주자는 건반 뒤에 서서 건반 쪽(관객 쪽)을 본다
     performer({ style: 0, height: 1 }, -5.7, -19.68, (b, t) => [[-0.07 + Math.sin(t * 9) * 0.04, 0.29, -0.32, -1.2 + Math.sin(t * 7) * 0.06], [-0.07 + Math.sin(t * 9 + 2) * 0.04, 0.29, -0.32, -1.2 + Math.sin(t * 7 + 2) * 0.06]]);
   }
+  if (!venue.lp) {
   const drummer = performer({ style: 0, height: 1 }, 0, -21.6, (b) => { const [l, r] = drumLift(b); return [[-0.1 - l * 0.55, 0.35, -0.35, -1.75 + l * 0.5], [-0.1 - r * 0.55, 0.35, -0.35, -1.75 + r * 0.5]]; }, 1.49);
   drummer.sit = true;
   // 스틱: 손에서 북까지. 오른손은 8분음표, 왼손은 2·4박
@@ -209,6 +218,7 @@ if (!venue.band) {
   const DRUM_TIPS = { [-1]: new THREE.Vector3(-0.42, 2.1, -21.05), [1]: new THREE.Vector3(0.42, 2.1, -21.05) };
   drummerSticks = [-1, 1].map((s) => { const m = new THREE.Mesh(stickG, stickM); scene.add(m); return { s, m, tip: DRUM_TIPS[s] }; });
   drummerRef = drummer;
+  }
 }
 [[12.75, -9], [12.75, -1.5]].forEach(([x, z]) => { const b = spawn({ top: new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.6 }), skirt: false }); place(b, x, z, -Math.PI / 2); b.isStaff = true; b.talkTo = 0.6; });
 
@@ -307,7 +317,7 @@ if (venue.jazz) {
   });
 }
 const couples = [];
-const COUPLE_MAX = lowEnd ? 2 : 3;
+const COUPLE_MAX = venue.lp ? 0 : lowEnd ? 2 : 3;
 let coupleNext = 0;
 // 마주 보고 안은 자세: 리드는 허리를, 상대는 어깨를
 const LEAD_ARMS = () => [[-1.0, 0.02, -0.42, -0.95], [-1.0, 0.02, -0.42, -0.95]];
@@ -390,6 +400,32 @@ function blues(pref) {
 }
 function stopBlues() { const c = playerCouple(); if (!c) return; endCouple(c); applyGroove(); renderUi(); }
 
+/* ───── LP 바: 신청곡 ───── */
+function openRequest() {
+  const box = $('reqList'); box.textContent = '';
+  const opts = [...TRACKS.filter((x) => x.venue === venue.id).map((t) => ({ track: t, title: t.name, sub: t.desc })), ...myItems().map((it) => ({ item: it, title: it.title, sub: it.shared ? '공용 곡' : 'myList' }))];
+  opts.forEach((o) => {
+    const b = document.createElement('button'); b.className = 'listBtn';
+    const t = document.createElement('span'); const st = document.createElement('strong'); st.textContent = o.title; const sm = document.createElement('small'); sm.textContent = o.sub; t.append(st, sm);
+    b.append(t); b.onclick = () => { $('reqModal').hidden = true; requestTrack(o, player); };
+    box.append(b);
+  });
+  $('reqModal').hidden = false;
+}
+function requestTrack(o, who) {
+  const title = o.track ? o.track.name : o.item.title;
+  say(who, '신청곡 부탁드려요', 1.8);
+  toast(`신청곡 「${title}」을 적어 냈습니다`, 2.4);
+  later(1.6, () => { if (lpOwner) say(lpOwner, pick(['신청곡 감사합니다. 바로 걸어 드릴게요', '좋은 판 고르셨네요', '이 판, 잘 아시는군요']), 2.6); });
+  later(2.2, () => { lpSwapUntil = now() + 2.2; edm.scratch?.(); });
+  later(4.4, () => {
+    if (o.track) { if (nowFile) backToBand(); settings.tracks[venue.id] = o.track.id; saveSettings(); edm.setTrack(o.track.id); $('nowName').textContent = o.track.name; }
+    else playItem(o.item);
+    toast(`지금 거는 판: ${title}`, 2.4);
+    setStep(5); renderUi();
+  });
+}
+$('reqX').onclick = () => { $('reqModal').hidden = true; };
 /* ───── 재즈 바: 합석 요청과 대화 ───── */
 let mate = null, joinAsker = null, joinSeat = null, joinNext = 0;
 const ieyo = (w) => { const c = w.charCodeAt(w.length - 1); return w + (c >= 0xac00 && c <= 0xd7a3 && (c - 0xac00) % 28 ? '이에요' : '예요'); };
@@ -479,7 +515,7 @@ function openChat() {
 }
 function closeChat() { $('chatPanel').hidden = true; renderUi(); }
 $('chatX').onclick = closeChat; $('chatClose').onclick = closeChat;
-['안녕하세요', '이 곡 좋네요', '무슨 일 하세요?', '건배해요', '여기 자주 오세요?', '블루스 한 곡 어때요?'].forEach((q) => {
+['안녕하세요', '이 곡 좋네요', '무슨 일 하세요?', '건배해요', '여기 자주 오세요?', venue.lp ? '신청곡 뭐 할까요?' : '블루스 한 곡 어때요?'].forEach((q) => {
   const b = document.createElement('button'); b.type = 'button'; b.className = 'qchip'; b.textContent = q; b.onclick = () => sendChat(q); $('chatQuick').append(b);
 });
 $('chatForm').onsubmit = (e) => { e.preventDefault(); const v = $('chatInput').value.trim(); if (v) sendChat(v); $('chatInput').value = ''; };
@@ -501,6 +537,8 @@ function mateReply(raw) {
     text = pick(['건배!', '좋아요, 건배!', '오늘 밤을 위하여!']);
     after = () => { edm.clink(); mate.sipTo = 1; later(1.5, () => { mate.sipTo = 0; }); if (myDrink.cup && myDrink.level > 0 && !player.sipTo) later(0.4, sip); };
   }
+  else if (venue.lp && has(/신청|판\s*뭐|틀어|걸어/)) { const T = pick(TRACKS.filter((x) => x.venue === 'lp')); text = `「${T.name}」 어때요? 그 판 소리가 참 좋아요. 제가 적어 낼게요.`; after = () => later(1.5, () => requestTrack({ track: T }, mate)); }
+  else if (venue.lp && has(/블루스|춤|춰|댄스|출까/)) text = '여긴 춤보다 듣는 곳이죠. 대신 신청곡 하나 써요.';
   else if (has(/블루스|춤|춰|댄스|출까/)) { text = pick(['좋아요, 한 곡 춰요!', '천천히 추는 거면 자신 있어요', '이 곡이면 딱이네요. 나가요']); after = () => later(1.2, () => { if (mateHere()) blues(mate); }); }
   else if (has(/안녕|반가|처음 뵙/)) text = once('hi', `안녕하세요! 저는 ${ieyo(m.name)}.`, '네, 다시 반가워요.');
   else if (has(/이름|누구세요|성함/)) text = `${ieyo(m.name)}. ${m.playerName ? `${m.playerName} 님 맞죠?` : '그쪽은요?'}`, m.asked = m.playerName ? null : 'name';
@@ -508,6 +546,7 @@ function mateReply(raw) {
   else if (has(/취미|주말|쉬는\s*날|뭐\s*하고\s*놀/)) text = `${m.hobby} 좋아해요. 요즘 거기에 빠져 있어요.`;
   else if (has(/나이|몇\s*살|연세|나이가/)) text = '그건 비밀이에요. 대신 이 바는 꽤 오래 다녔어요.';
   else if (has(/좋아하는\s*(가수|음악|뮤지션)|누구\s*좋아/)) { text = `${m.music} 좋아해요. 비 오는 밤에 들으면 최고예요. 그쪽은요?`; m.asked = 'music'; }
+  else if (has(/LP|판|레코드|바늘|턴테이블/i)) text = pick(['지직거리는 소리가 있어야 음악 같아요.', '여기 사장님 판이 만 장 넘는대요.', '디지털이랑은 소리가 달라요. 둥글다고 해야 하나.']);
   else if (has(/첼로/)) text = '첼로 소리가 낮게 깔리니까 노래가 더 따뜻하게 들려요.';
   else if (has(/피아노/)) text = '피아노 치시는 분 손이 정말 가볍네요. 솔로 나올 때 소름 돋았어요.';
   else if (has(/드럼|브러시/)) text = '브러시로 쓸어 주는 소리, 저 그거 너무 좋아해요.';
@@ -610,8 +649,8 @@ addEventListener('keyup', (e) => keys.delete(e.code));
 addEventListener('blur', () => keys.clear());
 
 /* ───── 화면 ───── */
-const modalOpen = () => !$('drinkModal').hidden || !$('settingsModal').hidden || !$('exitModal').hidden || !$('myListModal').hidden;
-const closeModals = () => { $('drinkModal').hidden = true; $('settingsModal').hidden = true; $('exitModal').hidden = true; $('myListModal').hidden = true; };
+const modalOpen = () => !$('reqModal').hidden || !$('drinkModal').hidden || !$('settingsModal').hidden || !$('exitModal').hidden || !$('myListModal').hidden;
+const closeModals = () => { $('reqModal').hidden = true; $('drinkModal').hidden = true; $('settingsModal').hidden = true; $('exitModal').hidden = true; $('myListModal').hidden = true; };
 document.querySelectorAll('[data-close]').forEach((b) => { b.onclick = closeModals; });
 document.querySelectorAll('.modalBack').forEach((m) => m.addEventListener('pointerdown', (e) => { if (e.target === m) closeModals(); }));
 let toastT;
@@ -1204,7 +1243,8 @@ function renderUi() {
   if (myDrink.sips > 0 || step >= 4) {
     list.push({ label: grooving ? '건들거리기 멈추기' : '건들거리기', primary: step === 4 && !grooving, on: grooving, fn: toggleGroove });
     if (grooving) list.push({ label: `흥: ${GROOVES[grooveLevel].name}`, fn: nextGrooveLevel });
-    if (venue.jazz) list.push({ label: playerCouple() ? '블루스 그만' : '블루스 추기', on: !!playerCouple(), primary: step === 4 && grooveBeats >= 8 && !playerCouple(), fn: blues });
+    if (venue.lp) list.push({ label: '신청곡 쓰기', primary: step === 4 && grooveBeats >= 8, fn: openRequest });
+    else if (venue.jazz) list.push({ label: playerCouple() ? '블루스 그만' : '블루스 추기', on: !!playerCouple(), primary: step === 4 && grooveBeats >= 8 && !playerCouple(), fn: blues });
     else if (!isShuffle()) list.push({ label: '셔플댄스', fn: () => shuffleDance() });
     else {
       list.push({ label: `셔플: ${SHUFFLES[shuffleIdx].name} ▸`, on: true, fn: nextShuffle });
@@ -1212,7 +1252,7 @@ function renderUi() {
     }
   }
   if (venue.jazz) {
-    if (step >= 4 && !player.target && !playerCouple() && !onFloor()) list.push({ label: '플로어로 나가기', fn: goStage });
+    if (!venue.lp && step >= 4 && !player.target && !playerCouple() && !onFloor()) list.push({ label: '플로어로 나가기', fn: goStage });
     if (step >= 4 && !player.target && !player.sit && myTable) list.push({ label: '내 자리로', fn: () => sitAtTable(myTable, player.lastSeat && (!player.lastSeat.by || player.lastSeat.by === player) ? player.lastSeat : null) });
   } else if (step >= 4 && !onFloor() && !player.target) {
     list.push({ label: '메인 스테이지로 가기', primary: grooveBeats >= 8, fn: goStage });
@@ -1233,7 +1273,7 @@ function renderUi() {
   else if (step === 3 && !hasCup) caption('어떤 음료로 할까요?');
   else if (step === 3) caption('시원하게 한 모금 하세요');
   else if (step === 4 && !grooving) caption('음악에 몸을 맡겨 보세요', '건들거리기를 누르면 박자에 맞춰 흔듭니다');
-  else if (step === 4) caption(grooveBeats < 8 ? `좋습니다. 그대로 리듬을 타세요` : venue.jazz ? '블루스 추기를 누르면 근처 손님과 함께 춥니다' : '몸이 풀렸습니다. 메인 스테이지로 가 볼까요?');
+  else if (step === 4) caption(grooveBeats < 8 ? `좋습니다. 그대로 리듬을 타세요` : venue.lp ? '신청곡 쓰기로 듣고 싶은 판을 부탁해 보세요' : venue.jazz ? '블루스 추기를 누르면 근처 손님과 함께 춥니다' : '몸이 풀렸습니다. 메인 스테이지로 가 볼까요?');
   else if (venue.jazz && playerCouple()) caption('천천히 돌며 블루스를 춥니다', '블루스 그만을 누르면 자리로 돌아갑니다');
   else if (venue.jazz) caption('');
   else if (step === 5 && onFloor() && !mingling.length) caption('어울리기를 누르면 주변 사람들이 모입니다');
