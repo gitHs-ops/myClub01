@@ -328,9 +328,9 @@ export function buildWorld(scene, fxState, theme) {
       box(1.02, 0.78, 0.02, std(0x3a2f26, { roughness: 0.95 }), x, 1.74, z + 0.26, inside);
     });
     // 건반
-    box(1.4, 0.07, 0.42, std(0x16120f), -5.7, 2.05, -19.25, inside);
-    box(1.3, 0.015, 0.16, std(0xf8f4e8), -5.7, 2.09, -19.12, inside);
-    [-0.5, 0.5].forEach((d) => add(new THREE.CylinderGeometry(0.02, 0.02, 0.9, 6), chrome, -5.7 + d, 1.6, -19.25, inside));
+    box(1.4, 0.07, 0.42, std(0x16120f), -5.7, 2.18, -19.25, inside);
+    box(1.3, 0.015, 0.16, std(0xf8f4e8), -5.7, 2.222, -19.38, inside);   // 건반은 연주자 쪽
+    [-0.5, 0.5].forEach((d) => add(new THREE.CylinderGeometry(0.02, 0.02, 1.03, 6), chrome, -5.7 + d, 1.665, -19.25, inside));
     // 마이크 스탠드
     add(new THREE.CylinderGeometry(0.012, 0.012, 1.45, 6), chrome, 0.32, 1.88, -18.05, inside);
     add(new THREE.CylinderGeometry(0.16, 0.16, 0.02, 14), chrome, 0.32, 1.16, -18.05, inside);

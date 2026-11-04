@@ -1,7 +1,7 @@
 import * as THREE from './vendor/three.min.js';
 import { Edm, TRACKS } from './edm.js?v=6';
 import { makePerson, updatePerson, goTo, say, jump, setWardrobe } from './people.js?v=6';
-import { buildWorld, ROOM, FLOOR, TABLES, BAR_SPOTS } from './world.js?v=9';
+import { buildWorld, ROOM, FLOOR, TABLES, BAR_SPOTS } from './world.js?v=10';
 import { VENUES } from './venues.js?v=2';
 import { listTracks, addTrack, putTrack, removeTrack, isAudioFile, titleOf, analyze } from './mylist.js?v=1';
 
@@ -153,7 +153,8 @@ if (!venue.band) {
   singer.danceStyle = 0;
   guitar(performer({ style: 0, height: 1 }, 3.3, -19.4, strum), wood);
   guitar(performer({ style: 3, height: 1 }, -3.3, -19.4, strum), red);
-  performer({ style: 0, height: 1 }, -5.7, -18.75, (b, t) => [[-1.08, 0.16, -0.12, -0.55 + Math.sin(t * 9) * 0.1], [-1.08, 0.16, -0.12, -0.55 + Math.sin(t * 9 + 2) * 0.1]]);
+  // 건반: 연주자는 건반 뒤에 서서 건반 쪽(관객 쪽)을 본다
+  performer({ style: 0, height: 1 }, -5.7, -19.68, (b, t) => [[-0.07 + Math.sin(t * 9) * 0.04, 0.29, -0.32, -1.2 + Math.sin(t * 7) * 0.06], [-0.07 + Math.sin(t * 9 + 2) * 0.04, 0.29, -0.32, -1.2 + Math.sin(t * 7 + 2) * 0.06]]);
   const drummer = performer({ style: 0, height: 1 }, 0, -21.6, (b) => { const [l, r] = drumLift(b); return [[-0.1 - l * 0.55, 0.35, -0.35, -1.75 + l * 0.5], [-0.1 - r * 0.55, 0.35, -0.35, -1.75 + r * 0.5]]; }, 1.49);
   drummer.sit = true;
   // 스틱: 손에서 북까지. 오른손은 8분음표, 왼손은 2·4박
