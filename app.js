@@ -100,7 +100,7 @@ if (!venue.band) {
 } else {
   const wood = new THREE.MeshStandardMaterial({ color: 0xb4632a, roughness: 0.35 }), dark = new THREE.MeshStandardMaterial({ color: 0x20140c, roughness: 0.4 }), red = new THREE.MeshStandardMaterial({ color: 0x9f1239, roughness: 0.3 });
   const guitar = (p, body) => {
-    const g = new THREE.Group(); g.position.set(0, 0.2, 0.15); g.rotation.z = -0.42;   // 몸통은 오른쪽 아래, 넥은 왼쪽 위
+    const g = new THREE.Group(); g.position.set(0, 0.2, 0.17); g.rotation.z = -0.42; g.scale.setScalar(1.4);   // 몸통은 오른쪽 아래, 넥은 왼쪽 위
     const b = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.17, 0.07, 18), body); b.rotation.x = Math.PI / 2; b.position.x = 0.12; b.scale.set(1.25, 1, 1); g.add(b);
     const n = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.04, 0.025), dark); n.position.x = -0.3; g.add(n);
     const h = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.06, 0.025), dark); h.position.x = -0.61; g.add(h);
