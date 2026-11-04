@@ -778,7 +778,37 @@ function placeCupOnTable(T) {
   myDrink.table = T;
   myDrink.cup.position.copy(myDrink.pos);
 }
+/* 재즈 바: 주문하면 홀 직원이 쟁반에 받쳐 자리로 가져다준다 */
+let serving = false;
+function serveDrink(d) {
+  if (sending) { later(1, () => serveDrink(d)); return; }
+  const T = myTable || nearestFreeTable();
+  serving = true;
+  if (myDrink.cup) { myDrink.cup.parent?.remove(myDrink.cup); myDrink.cup = null; }
+  myDrink.def = d; myDrink.level = 0;
+  tray.children.slice(1).forEach((c) => tray.remove(c));
+  const c = makeCup(d); scene.remove(c); c.position.set(0, 0.08 * (d.glass?.[1] || 1), 0); tray.add(c);
+  toast(`${d.name} 주문했습니다. 홀 직원이 가져다 드립니다`, 2.4); renderUi();
+  const k = Math.atan2(player.x - T.x, player.z - T.z) + 0.85, sx = T.x + Math.sin(k) * 1.3, sz = T.z + Math.cos(k) * 1.3;
+  later(0.8, () => {
+    waiter.showIdTo = 1; tray.visible = true;
+    goTo(waiter, sx, sz, () => {
+      waiter.yawTo = Math.atan2(T.x - waiter.x, T.z - waiter.z);
+      say(waiter, `주문하신 ${d.name} 나왔습니다`, 2.2);
+      if (!player.target) player.yawTo = Math.atan2(waiter.x - player.x, waiter.z - player.z);
+      later(1.2, () => {
+        tray.visible = false; waiter.showIdTo = 0; tray.remove(c);
+        myDrink.cup = makeCup(d); myDrink.level = 1; player.sipHigh = !!d.noStraw;
+        placeCupOnTable(T); edm.clink(); serving = false;
+        later(0.4, () => say(player, '고맙습니다', 1.4));
+        toast(`${d.name} 나왔습니다. 한 모금 하세요`, 2.2); renderUi();
+        goTo(waiter, WAITER_HOME[0], WAITER_HOME[1], () => { waiter.yawTo = -Math.PI / 2; });
+      });
+    });
+  });
+}
 function orderDrink(d) {
+  if (venue.jazz) { serveDrink(d); return; }
   if (myDrink.cup) { myDrink.cup.parent?.remove(myDrink.cup); }
   myDrink.def = d; myDrink.level = 1; myDrink.cup = makeCup(d); player.sipHigh = !!d.noStraw;
   placeCupOnTable(myTable || nearestFreeTable());
@@ -834,6 +864,7 @@ function openSend() {
 function sendDrink(T, d) {
   const g = guestsAt(T);
   if (!g.length || sending) return;
+  if (serving) { toast('홀 직원이 내 음료를 가져오는 중입니다. 잠시 뒤에 보내 주세요', 2.4); return; }
   sending = true; renderUi();
   toast(`${T.i + 1}번 테이블로 ${d.name} ${g.length}잔을 주문했습니다`, 2.4);
   // 쟁반 위 잔
@@ -1013,7 +1044,8 @@ function renderUi() {
   const atTable = inTableReach();
   const hasCup = !!myDrink.cup;
   if (!atTable && (!myTable || !hasCup || step < 4)) list.push({ label: venue.jazz ? '자리에 앉기' : '스탠딩 테이블로 가기', primary: step === 3, fn: () => walkToTable(myTable || nearestFreeTable()) });
-  if (atTable && !hasCup) list.push({ label: '음료 고르기', primary: true, fn: () => openDrinks() });
+  if (serving) list.push({ label: '서빙 기다리는 중', disabled: true, fn: () => {} });
+  else if (atTable && !hasCup) list.push({ label: '음료 고르기', primary: true, fn: () => openDrinks() });
   if (atTable && hasCup) {
     if (myDrink.level > 0) list.push({ label: player.sipTo ? '마시는 중' : `한 모금 마시기 (${Math.round(myDrink.level * 100)}%)`, primary: step === 3, disabled: !!player.sipTo, fn: sip });
     else list.push({ label: '한 잔 더', fn: () => openDrinks() });
@@ -1048,6 +1080,7 @@ function renderUi() {
 
   if (player.target) caption('걸어가는 중입니다');
   else if (step === 3 && !atTable) caption(venue.jazz ? '빈 자리에 앉아 한 잔 하세요' : '스탠딩 테이블로 가서 목을 축이세요', venue.jazz ? '버튼을 누르거나 촛불 켜진 탁자를 눌러도 됩니다' : '버튼을 누르거나 빛나는 테이블을 눌러도 됩니다');
+  else if (step === 3 && serving) caption('홀 직원이 음료를 가져다 드립니다', '잠시 기다리세요');
   else if (step === 3 && !hasCup) caption('어떤 음료로 할까요?');
   else if (step === 3) caption('시원하게 한 모금 하세요');
   else if (step === 4 && !grooving) caption('음악에 몸을 맡겨 보세요', '건들거리기를 누르면 박자에 맞춰 흔듭니다');
