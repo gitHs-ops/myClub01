@@ -93,7 +93,7 @@ canvas#scene:active { cursor: grabbing; }
 .gateWrap .lead { color: #e2e8f0; }
 .gateWrap .kicker { color: #fbcfe8; }
 .gateWrap .note { color: #cbd5e1; }
-.venueCards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.venueCards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
 .venueCard { padding: 22px; display: flex; flex-direction: column; text-align: left; }
 .venueCard:nth-child(2) { animation-delay: .08s; }
 .venueCard h2 { margin: 2px 0 8px; font: 800 26px var(--font-accent); letter-spacing: -0.3px; }
@@ -187,3 +187,8 @@ h3 { margin: 14px 0 8px; font-size: 14px; font-weight: 700; }
 
 /* 안내 문구 끄기 */
 body.noGuide #caption, body.noGuide #gCaption, body.noGuide .sCue { display: none !important; }
+
+.venueCard:nth-child(4) { animation-delay: .24s; }
+.venueCard.jazz .vTag { color: #1d4ed8; }
+.venueCard.jazz .btn.primary { background: linear-gradient(135deg, #1e3a8a, #7c2d12); box-shadow: 0 12px 28px rgba(30, 58, 138, .38); }
+@media (max-width: 1100px) and (min-width: 721px) { .venueCards { grid-template-columns: repeat(2, 1fr); } }

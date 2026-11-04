@@ -1,8 +1,8 @@
 import * as THREE from './vendor/three.min.js';
-import { Edm, TRACKS } from './edm.js?v=6';
+import { Edm, TRACKS } from './edm.js?v=7';
 import { makePerson, updatePerson, goTo, say, jump, setWardrobe } from './people.js?v=8';
-import { buildWorld, ROOM, FLOOR, TABLES, BAR_SPOTS } from './world.js?v=10';
-import { VENUES } from './venues.js?v=3';
+import { buildWorld, ROOM, FLOOR, TABLES, BAR_SPOTS } from './world.js?v=11';
+import { VENUES } from './venues.js?v=4';
 import { listTracks, addTrack, putTrack, removeTrack, isAudioFile, titleOf, analyze, isLrcFile, readText, lyricLines, id3Lyrics } from './mylist.js?v=2';
 
 const $ = (id) => document.getElementById(id);
@@ -21,7 +21,7 @@ const later = (sec, f) => setTimeout(f, sec * 1000);
 
 /* ───── 설정 ───── */
 const KEY = 'clubpulse.v1';
-const settings = Object.assign({ allFollow: false, autoNext: true, volume: 80, tracks: { club: 'neon', live7080: 'gogo' }, lowFx: matchMedia('(prefers-reduced-motion: reduce)').matches }, (() => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } })());
+const settings = Object.assign({ allFollow: false, autoNext: true, volume: 80, tracks: { club: 'neon', live7080: 'gogo', jazz: 'swing' }, lowFx: matchMedia('(prefers-reduced-motion: reduce)').matches }, (() => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } })());
 const saveSettings = () => { try { localStorage.setItem(KEY, JSON.stringify(settings)); } catch { /* 사생활 모드 */ } };
 const fxState = { full: !settings.lowFx };
 
@@ -133,7 +133,7 @@ const tray = new THREE.Group(); scene.add(tray);
 tray.add(new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.015, 24), new THREE.MeshStandardMaterial({ color: 0xc0c4cc, roughness: 0.25, metalness: 0.8 })));
 tray.visible = false;
 const performers = [];
-let drummerSticks = [], drummerRef = null;
+let drummerSticks = [], drummerRef = null, celloBow = null;
 // 박자 안에서 스틱이 들린 정도: 0이면 북을 친 순간 [왼손, 오른손]
 const drumLift = (b) => { const r = (b * 2) % 1, l = ((b + 1) % 2) / 2; return [Math.sin(Math.PI * Math.min(1, l * 1.4)) * (l < 0.72 ? 1 : 0), Math.sin(Math.PI * r)]; };
 const stickA = new THREE.Vector3(), stickB = new THREE.Vector3(), stickUp = new THREE.Vector3(0, 1, 0), stickQ = new THREE.Quaternion();
@@ -154,17 +154,56 @@ if (!venue.band) {
     p.torso.add(g);
   };
   const strum = (b) => { const k = Math.sin(b * Math.PI * 2); return [[-0.45, 0.35, 0.6, -2.0], [0.02 + k * 0.08, 0.35, -0.8, -1.4 + k * 0.22]]; };
-  const singer = performer({ style: 1, top: new THREE.MeshStandardMaterial({ color: 0xf5f0e1, roughness: 0.55 }), height: 1 }, 0, -18.45, (b) => { const k = Math.sin(b * Math.PI); return [[-1.3 + k * 0.35, 0.55, 0, -0.45], [-0.95, 0.28, -0.58, -2.05]]; });
-  const mic = new THREE.Mesh(new THREE.CapsuleGeometry(0.025, 0.1, 4, 8), dark); mic.position.set(0, -0.09, 0.02); singer.arms[1].h.add(mic);
-  singer.danceStyle = 0;
-  guitar(performer({ style: 0, height: 1 }, 3.3, -19.4, strum), wood);
-  guitar(performer({ style: 3, height: 1 }, -3.3, -19.4, strum), red);
-  // 건반: 연주자는 건반 뒤에 서서 건반 쪽(관객 쪽)을 본다
-  performer({ style: 0, height: 1 }, -5.7, -19.68, (b, t) => [[-0.07 + Math.sin(t * 9) * 0.04, 0.29, -0.32, -1.2 + Math.sin(t * 7) * 0.06], [-0.07 + Math.sin(t * 9 + 2) * 0.04, 0.29, -0.32, -1.2 + Math.sin(t * 7 + 2) * 0.06]]);
+  if (venue.jazz) {
+    const M = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.45, ...o });
+    // 재즈 싱어: 붉은 드레스, 오른손은 스탠드 마이크에, 왼손은 노래에 맞춰 천천히
+    const singer = performer({ style: 1, top: M(0xa3122a, { roughness: 0.3 }), bottom: M(0xa3122a, { roughness: 0.3 }), shoe: M(0x111111), height: 1 }, 0, -18.45, (b) => {
+      const k = Math.sin(b * Math.PI * 0.5);
+      return [[-0.55 + k * 0.3, 0.45 + k * 0.2, -0.25, -0.75 - k * 0.2], [-1.05, 0.12, -0.5, -1.55]];
+    });
+    singer.danceStyle = 0;
+    // 피아니스트: 그랜드 피아노 앞에 앉아 오른쪽(+x)을 본다
+    const pianist = performer({ style: 0, top: M(0x111827), bottom: M(0x111827), height: 1 }, -6.05, -19.85, (b, t) => {
+      const l = Math.sin(t * 2.3) * 0.12, r = Math.sin(t * 3.1 + 1) * 0.14, tl = Math.max(0, Math.sin(t * 11)) * 0.05, tr = Math.max(0, Math.sin(t * 13 + 2)) * 0.05;
+      return [[-0.55 - tl, 0.22 + l, -0.32, -1.25 + tl], [-0.55 - tr, 0.22 + r, -0.32, -1.25 + tr]];
+    });
+    place(pianist, -6.05, -19.85, Math.PI / 2); pianist.sit = true;
+    // 첼리스트: 의자에 앉아 무릎 사이에 첼로, 왼손은 지판, 오른손은 활
+    const CX = 3.6, CZ = -19.75, CYAW = -0.32;
+    const cellist = performer({ style: 0, top: M(0xe5e7eb), bottom: M(0x111111), height: 1 }, CX, CZ, (b, t) => {
+      const bow = Math.sin(b * Math.PI * (edm.track?.jazz === 'ballad' ? 0.25 : 0.5)), slide = Math.sin(t * 0.7) * 0.08;
+      return [[-1.25 + slide, -0.05, -0.35, -1.55], [-0.62, 0.32 + bow * 0.3, -0.15, -1.15 + bow * 0.35]];
+    });
+    place(cellist, CX, CZ, CYAW); cellist.sit = true;
+    const wood = M(0x7a3410, { roughness: 0.3 }), ebony = M(0x111111, { roughness: 0.3 }), steel = M(0xcfcfcf, { metalness: 0.8, roughness: 0.25 });
+    const holder = new THREE.Group(); holder.position.set(CX, STAGE_Y, CZ); holder.rotation.y = CYAW; scene.add(holder);
+    const cello = new THREE.Group(); cello.position.set(0.02, 0, 0.4); cello.rotation.set(-0.3, 0, -0.12); cello.scale.setScalar(1.3); holder.add(cello);
+    const sph = (r, sx, sy, sz, y, mat) => { const m = new THREE.Mesh(new THREE.SphereGeometry(r, 20, 14), mat); m.scale.set(sx, sy, sz); m.position.y = y; cello.add(m); return m; };
+    sph(0.2, 1, 1.05, 0.45, 0.36, wood);            // 아래 몸통
+    sph(0.165, 1, 1.05, 0.45, 0.68, wood);          // 위 몸통
+    sph(0.12, 1, 0.9, 0.42, 0.52, wood);            // 허리
+    const nk = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.5, 0.035), ebony); nk.position.set(0, 1.0, 0.05); cello.add(nk);
+    const fb = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.58, 0.012), ebony); fb.position.set(0, 0.86, 0.1); cello.add(fb);
+    const scroll = new THREE.Mesh(new THREE.TorusGeometry(0.035, 0.014, 6, 12), wood); scroll.position.set(0, 1.28, 0.04); scroll.rotation.y = Math.PI / 2; cello.add(scroll);
+    const pin = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.2, 6), steel); pin.position.y = 0.1; cello.add(pin);
+    const bridge = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.05, 0.01), M(0xe8cfa0)); bridge.position.set(0, 0.4, 0.1); cello.add(bridge);
+    for (const x of [-0.015, -0.005, 0.005, 0.015]) { const st = new THREE.Mesh(new THREE.BoxGeometry(0.002, 0.95, 0.002), steel); st.position.set(x, 0.85, 0.11); cello.add(st); }
+    const bowG = new THREE.CylinderGeometry(0.005, 0.006, 1, 6); bowG.translate(0, 0.5, 0);
+    const bowM = new THREE.Mesh(bowG, M(0x5a2d0c)); scene.add(bowM);
+    celloBow = { m: bowM, p: cellist, cello, contact: new THREE.Vector3(0, 0.47, 0.12) };
+  } else {
+    const singer = performer({ style: 1, top: new THREE.MeshStandardMaterial({ color: 0xf5f0e1, roughness: 0.55 }), height: 1 }, 0, -18.45, (b) => { const k = Math.sin(b * Math.PI); return [[-1.3 + k * 0.35, 0.55, 0, -0.45], [-0.95, 0.28, -0.58, -2.05]]; });
+    const mic = new THREE.Mesh(new THREE.CapsuleGeometry(0.025, 0.1, 4, 8), dark); mic.position.set(0, -0.09, 0.02); singer.arms[1].h.add(mic);
+    singer.danceStyle = 0;
+    guitar(performer({ style: 0, height: 1 }, 3.3, -19.4, strum), wood);
+    guitar(performer({ style: 3, height: 1 }, -3.3, -19.4, strum), red);
+    // 건반: 연주자는 건반 뒤에 서서 건반 쪽(관객 쪽)을 본다
+    performer({ style: 0, height: 1 }, -5.7, -19.68, (b, t) => [[-0.07 + Math.sin(t * 9) * 0.04, 0.29, -0.32, -1.2 + Math.sin(t * 7) * 0.06], [-0.07 + Math.sin(t * 9 + 2) * 0.04, 0.29, -0.32, -1.2 + Math.sin(t * 7 + 2) * 0.06]]);
+  }
   const drummer = performer({ style: 0, height: 1 }, 0, -21.6, (b) => { const [l, r] = drumLift(b); return [[-0.1 - l * 0.55, 0.35, -0.35, -1.75 + l * 0.5], [-0.1 - r * 0.55, 0.35, -0.35, -1.75 + r * 0.5]]; }, 1.49);
   drummer.sit = true;
   // 스틱: 손에서 북까지. 오른손은 8분음표, 왼손은 2·4박
-  const stickM = new THREE.MeshStandardMaterial({ color: 0xe8cfa0, roughness: 0.5 });
+  const stickM = new THREE.MeshStandardMaterial({ color: venue.jazz ? 0x2a2a2e : 0xe8cfa0, roughness: venue.jazz ? 0.3 : 0.5, metalness: venue.jazz ? 0.6 : 0 });   // 재즈는 브러시
   const stickG = new THREE.CylinderGeometry(0.009, 0.013, 1, 8); stickG.translate(0, 0.5, 0);
   const DRUM_TIPS = { [-1]: new THREE.Vector3(-0.42, 2.1, -21.05), [1]: new THREE.Vector3(0.42, 2.1, -21.05) };
   drummerSticks = [-1, 1].map((s) => { const m = new THREE.Mesh(stickG, stickM); scene.add(m); return { s, m, tip: DRUM_TIPS[s] }; });
@@ -626,7 +665,7 @@ function offerDrink(d) {
     toast(`${d.name} 나왔습니다`);
   });
   later(3.6, () => {
-    const cheers = venue.band ? '위하여!' : '건배!', together = myDrink.cup && myDrink.level > 0 && !player.sipTo;
+    const cheers = venue.toastWord, together = myDrink.cup && myDrink.level > 0 && !player.sipTo;
     say(n, cheers, 1.6);
     if (together) { say(player, cheers, 1.6); sip(); }
     edm.clink();
@@ -674,7 +713,7 @@ function sendDrink(T, d) {
         tray.visible = false; waiter.showIdTo = 0; edm.clink();
         g.forEach((n) => { n.cup?.parent?.remove(n.cup); npcCups(n, d); n.nextAct = now() + 14; n.yawTo = Math.atan2(player.x - n.x, player.z - n.z); n.talkTo = 0; });
         later(0.9, () => {
-          say(g[0], pick(venue.band ? [`${T.i + 1}번 테이블, 잘 마실게요!`, '고맙습니다! 위하여!'] : [`${T.i + 1}번 테이블, 땡큐!`, '잘 마실게요! 건배!']), 2.4);
+          say(g[0], pick(venue.band ? [`${T.i + 1}번 테이블, 잘 마실게요!`, `고맙습니다! ${venue.toastWord}`] : [`${T.i + 1}번 테이블, 땡큐!`, '잘 마실게요! 건배!']), 2.4);
           g.forEach((n, i) => { n.waveTo = 1; later(1.4, () => { n.waveTo = 0; later(0.3 + i * 0.2, () => { n.sipTo = 1; later(1.5, () => { n.sipTo = 0; }); }); }); });
           toast(`${T.i + 1}번 테이블에서 고맙다고 손을 흔듭니다`, 2.6);
           // 나도 그 테이블을 보며 같이 손을 흔든다
@@ -682,7 +721,7 @@ function sendDrink(T, d) {
             player.yawTo = Math.atan2(T.x - player.x, T.z - player.z);
             later(0.35, () => { player.waveTo = 1; later(1.6, () => { player.waveTo = 0; }); });
           }
-          say(player, venue.band ? '위하여!' : '건배!', 1.4);
+          say(player, venue.toastWord, 1.4);
           if (myDrink.cup && myDrink.level > 0 && inTableReach() && !player.sipTo) later(2.1, sip);
         });
         later(2, () => { sending = false; renderUi(); });
@@ -1235,7 +1274,7 @@ function frame(nowMs) {
     if (!p.isPlayer && !p.isStaff && p.role) npcTick(p, t, clock);
     updatePerson(p, dt, t, clock, collide);
     if (p.y0) { p.root.position.y = p.y0 + p.y; }
-    if (p.armPose !== undefined && performers.includes(p)) { p.danceTo = 1; p.danceStyle = !venue.band && clock.section.name === 'drop' ? 4 : venue.stageStyle; p.groove = venue.band ? 0.55 : 0.8; p.upTo = !venue.band && clock.section.name === 'build' && clock.section.barIn >= 2 ? 1 : 0; }
+    if (p.armPose !== undefined && performers.includes(p)) { p.danceTo = 1; p.danceStyle = !venue.band && clock.section.name === 'drop' ? 4 : venue.stageStyle; p.groove = venue.jazz ? 0.35 : venue.band ? 0.55 : 0.8; p.upTo = !venue.band && clock.section.name === 'build' && clock.section.barIn >= 2 ? 1 : 0; }
     // 말풍선은 벽 너머나 먼 곳이면 보이지 않는다
     if (p.bubble.visible) {
       const sameSide = p === player || (p.z > 4.9) === (player.z > 4.9);
@@ -1253,6 +1292,13 @@ function frame(nowMs) {
       stickQ.setFromUnitVectors(stickUp, d.normalize());
       st.m.quaternion.copy(stickQ); st.m.position.copy(stickA).addScaledVector(d, -0.06); st.m.scale.set(1, len + 0.06, 1);
     }
+  }
+  if (celloBow) {   // 활: 오른손에서 현을 지나 조금 더
+    celloBow.p.arms[1].h.localToWorld(stickA.set(0, -0.03, 0.02));
+    celloBow.cello.localToWorld(stickB.copy(celloBow.contact));
+    const d = stickB.sub(stickA), len = d.length();
+    stickQ.setFromUnitVectors(stickUp, d.normalize());
+    celloBow.m.quaternion.copy(stickQ); celloBow.m.position.copy(stickA).addScaledVector(d, -0.12); celloBow.m.scale.set(1, len + 0.42, 1);
   }
   if (tray.visible) { waiter.arms[1].h.getWorldPosition(tray.position); tray.position.y += 0.02; }
   syncMingle();

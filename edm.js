@@ -87,6 +87,22 @@ export const TRACKS = [
     chords: [[57, 60, 64], [50, 53, 57], [55, 59, 62], [48, 52, 55]], bass: [33, 26, 31, 36],
     melody: [6, 0, 5, 4, 0, 4, 5, 0, 6, 0, 4, 0, 3, 0, 0, 0, 5, 0, 4, 3, 0, 3, 4, 0, 5, 0, 3, 0, 2, 0, 0, 0],
   },
+  /* 재즈 바: 직접 지은 곡. chords는 7화음 4음, melody는 그 구성음 번호(1~8), 2마디 32칸 */
+  {
+    id: 'swing', venue: 'jazz', style: 'band', jazz: 'swing', name: '블루 아워 스윙', desc: '132 BPM · 스윙', bpm: 132,
+    chords: [[55, 58, 62, 65], [52, 55, 58, 60], [53, 57, 60, 64], [50, 54, 57, 60]], bass: [43, 36, 41, 38],
+    melody: [3, 0, 0, 4, 5, 0, 0, 0, 4, 0, 3, 0, 2, 0, 0, 0, 1, 0, 2, 0, 3, 0, 5, 0, 4, 0, 0, 0, 0, 0, 0, 0],
+  },
+  {
+    id: 'ballad', venue: 'jazz', style: 'band', jazz: 'ballad', name: '새벽 두 시의 발라드', desc: '68 BPM · 재즈 발라드', bpm: 68,
+    chords: [[51, 55, 58, 62], [48, 51, 55, 58], [53, 56, 60, 63], [46, 50, 53, 56]], bass: [39, 36, 41, 46],
+    melody: [5, 0, 0, 0, 4, 0, 3, 0, 0, 0, 0, 0, 2, 0, 0, 0, 3, 0, 0, 0, 4, 0, 6, 0, 5, 0, 0, 0, 0, 0, 0, 0],
+  },
+  {
+    id: 'bossa', venue: 'jazz', style: 'band', jazz: 'bossa', name: '비 오는 날의 보사노바', desc: '118 BPM · 보사노바', bpm: 118,
+    chords: [[57, 60, 64, 67], [50, 54, 57, 60], [55, 59, 62, 66], [48, 52, 55, 59]], bass: [45, 38, 43, 36],
+    melody: [4, 0, 0, 3, 0, 0, 4, 0, 5, 0, 0, 0, 4, 0, 0, 0, 3, 0, 0, 2, 0, 0, 3, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+  },
 ];
 
 /* 곡 구성(마디). energy는 조명과 군중의 흥에 쓴다 */
@@ -265,6 +281,7 @@ export class Edm {
 
   /* 밴드: 드럼, 베이스, 기타, 건반, 관악 멜로디 */
   playBand(step, t) {
+    if (this.track.jazz) { this.playJazz(step, t); return; }
     const T = this.track, s16 = step % 16, bar = Math.floor(step / 16), sec = sectionAt(bar, this.form), name = sec.name, feel = T.feel;
     const chord = T.chords[bar % T.chords.length], root = T.bass[bar % T.bass.length];
     const drop = name === 'drop', intro = name === 'intro', brk = name === 'break', build = name === 'build', folk = feel === 'folk', disco = feel === 'disco';
@@ -303,6 +320,134 @@ export class Edm {
         this.horn(t, midi(note), drop || brk ? 0.075 : 0.055);
       }
     }
+  }
+
+  /* 재즈: 브러시 드럼, 첼로, 피아노, 보컬. break는 피아노 솔로 */
+  playJazz(step, t0) {
+    const T = this.track, s16 = step % 16, bar = Math.floor(step / 16), sec = sectionAt(bar, this.form), name = sec.name, feel = T.jazz;
+    const chord = T.chords[bar % T.chords.length], root = T.bass[bar % T.bass.length], next = T.bass[(bar + 1) % T.bass.length];
+    const intro = name === 'intro', brk = name === 'break', drop = name === 'drop', swing = feel === 'swing', ballad = feel === 'ballad';
+    // 스윙은 뒤 8분음표를 늦게 친다
+    const t = swing && s16 % 4 === 2 ? t0 + this.spStep * 0.66 : t0;
+    if (s16 === 0) this.synthFilter.frequency.setTargetAtTime(drop ? 3600 : 2600, t, 0.3);
+    const tone = (n) => chord[(n - 1) % 4] + 12 * Math.floor((n - 1) / 4);
+
+    // 드럼: 라이드와 브러시
+    if (swing) {
+      if ([0, 4, 6, 8, 12, 14].includes(s16) && !(intro && sec.barIn < 2)) this.ride(t, s16 % 4 ? 0.05 : 0.075);
+      if (s16 === 4 || s16 === 12) this.hat(t, 0.05, 0.03);
+      if (s16 % 4 === 0) this.kick(t, 0.12);
+      if (!intro && (s16 === 6 || s16 === 14) && (bar + s16) % 3 === 0) this.brush(t, 0.08, 0.08);
+    } else if (ballad) {
+      if (s16 % 4 === 0) this.brush(t, this.spb * 0.85, 0.05);
+      if (s16 === 4 || s16 === 12) this.brush(t, 0.12, 0.06);
+      if (s16 === 0 && drop) this.ride(t, 0.04);
+    } else {
+      if (s16 % 2 === 0) this.ride(t, s16 % 4 ? 0.035 : 0.05);
+      if (s16 === 0 || s16 === 6 || s16 === 8 || s16 === 14) this.kick(t, 0.16);
+      if ([0, 6, 12].includes(s16) || (bar % 2 && [4, 10].includes(s16))) this.rim(t, 0.09);
+    }
+    if (drop && sec.barIn === 0 && s16 === 0) this.cheer(0.05, t);
+
+    // 첼로: 스윙은 걷는 베이스, 발라드는 길게 켜고, 보사는 근음과 5도
+    if (swing) {
+      if (s16 % 4 === 0) {
+        const beat = s16 / 4, n = [root, root + (chord[1] - chord[0]), root + 7, next + (bar % 2 ? 1 : -1)][beat];
+        this.cello(t, midi(n), this.spb * 0.9, 0.2, false);
+      }
+    } else if (ballad) {
+      if (s16 === 0) this.cello(t, midi(root), this.spb * 2.6, 0.12, true);
+      if (s16 === 8) this.cello(t, midi(root + 7), this.spb * 1.8, 0.1, true);
+    } else if (s16 === 0 || s16 === 6 || s16 === 8 || s16 === 14) {
+      this.cello(t, midi(s16 >= 8 ? root + 7 : root), this.spStep * 2.4, 0.2, false);
+    }
+
+    // 피아노 반주
+    const voicing = chord.slice(1).concat(chord[0] + 12);
+    if (swing) {
+      if (s16 === 0 || (s16 === 6 && bar % 2 === 0) || (s16 === 10 && bar % 2)) voicing.forEach((n, i) => this.piano(t + i * 0.006, midi(n), 0.035, this.spb * 1.2));
+    } else if (ballad) {
+      if (s16 === 0) voicing.forEach((n, i) => this.piano(t + i * 0.06, midi(n), 0.04, this.spb * 3));
+      if (s16 === 8 && !brk) [voicing[1], voicing[3]].forEach((n, i) => this.piano(t + i * 0.05, midi(n + 12), 0.025, this.spb * 1.5));
+    } else if ([0, 3, 6, 10, 12].includes(s16)) voicing.forEach((n) => this.piano(t, midi(n), 0.028, this.spStep * 1.6));
+
+    // 노래와 피아노 솔로
+    if (intro) return;
+    const i = step % 32, n = T.melody[i];
+    if (!n) return;
+    let len = 1; while (len < 8 && !T.melody[(i + len) % 32]) len++;
+    if (brk) {   // 피아노 솔로: 노래 선율을 한 옥타브 위에서 꾸며 친다
+      this.piano(t, midi(tone(n) + 12), 0.07, this.spStep * len);
+      if (len > 2) this.piano(t + this.spStep * (swing ? 1.33 : 1), midi(tone(n + 1) + 12), 0.05, this.spStep * (len - 1));
+      return;
+    }
+    const vowel = 'aoaue'[(Math.floor(step / 8) + n) % 5];
+    this.sing(t, midi(tone(n) + 12), this.spStep * len * 0.95, drop ? 0.2 : 0.16, vowel);
+  }
+
+  ride(t, v) {
+    const g = this.noise(t, 0.5, 'highpass', 5200, v, 0.7); g.connect(this.verb);
+    this.voice(t, 3150, 0.35, v * 0.07, 'sine', [0, 1180], this.music);
+  }
+
+  brush(t, dur, v) {
+    const { ctx } = this, n = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+    n.buffer = this.noiseBuf; f.type = 'bandpass'; f.frequency.value = 3200; f.Q.value = 0.6;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + Math.min(0.08, dur * 0.4)); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    n.connect(f); f.connect(g); g.connect(this.music); n.start(t, Math.random() * 1.5); n.stop(t + dur + 0.03);
+  }
+
+  rim(t, v) {
+    this.noise(t, 0.04, 'bandpass', 1800, v, 4);
+    this.voice(t, 820, 0.04, v * 0.5, 'square', [0], this.music);
+  }
+
+  /* 첼로: 톱니파를 몸통 공명처럼 걸러 낸다. bowed면 천천히 켜고 떨림을 준다 */
+  cello(t, f, dur, v, bowed) {
+    const { ctx } = this, o = ctx.createOscillator(), o2 = ctx.createOscillator(), lp = ctx.createBiquadFilter(), bp = ctx.createBiquadFilter(), g = ctx.createGain();
+    o.type = 'sawtooth'; o2.type = 'triangle'; o.frequency.value = f; o2.frequency.value = f; o2.detune.value = 4;
+    lp.type = 'lowpass'; lp.frequency.value = bowed ? 1500 : 1100; lp.Q.value = 1.2;
+    bp.type = 'peaking'; bp.frequency.value = 280; bp.gain.value = 6; bp.Q.value = 1.5;
+    const a = bowed ? 0.18 : 0.01;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + a);
+    if (bowed) { g.gain.setValueAtTime(v, t + dur * 0.7); g.gain.exponentialRampToValueAtTime(0.0001, t + dur); }
+    else g.gain.exponentialRampToValueAtTime(0.0001, t + a + dur);
+    if (bowed) {
+      const lfo = ctx.createOscillator(), lg = ctx.createGain(); lfo.frequency.value = 5.3; lg.gain.setValueAtTime(0, t); lg.gain.linearRampToValueAtTime(f * 0.008, t + 0.4);
+      lfo.connect(lg); lg.connect(o.frequency); lg.connect(o2.frequency); lfo.start(t); lfo.stop(t + dur + 0.1);
+    }
+    o.connect(lp); o2.connect(lp); lp.connect(bp); bp.connect(g); g.connect(this.music); g.connect(this.verb);
+    for (const x of [o, o2]) { x.start(t); x.stop(t + dur + a + 0.1); }
+  }
+
+  /* 피아노: 맑은 어택과 빠른 감쇠, 배음을 조금 섞는다 */
+  piano(t, f, v, dur) {
+    const { ctx } = this, g = ctx.createGain(), d = Math.max(0.25, Math.min(2.4, dur * 1.4));
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + 0.004); g.gain.exponentialRampToValueAtTime(v * 0.35, t + 0.18); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+    g.connect(this.music); g.connect(this.verb);
+    [[1, 'triangle', 1], [2, 'sine', 0.35], [3, 'sine', 0.12]].forEach(([h, type, k]) => {
+      const o = ctx.createOscillator(), og = ctx.createGain(); o.type = type; o.frequency.value = f * h; o.detune.value = h === 2 ? 3 : 0; og.gain.value = k;
+      o.connect(og); og.connect(g); o.start(t); o.stop(t + d + 0.05);
+    });
+  }
+
+  /* 보컬: 성대(톱니파)에 모음 공명(포먼트)을 씌우고 비브라토를 늦게 건다 */
+  sing(t, f, dur, v, vowel = 'a') {
+    const { ctx } = this, F = { a: [800, 1150, 2900], o: [450, 800, 2830], u: [325, 700, 2530], e: [400, 2000, 2550] }[vowel] || [800, 1150, 2900];
+    const o = ctx.createOscillator(), o2 = ctx.createOscillator(), g = ctx.createGain(), lfo = ctx.createOscillator(), lg = ctx.createGain();
+    o.type = 'sawtooth'; o2.type = 'sine'; o2.frequency.value = f;
+    o.frequency.setValueAtTime(f * 0.97, t); o.frequency.exponentialRampToValueAtTime(f, t + 0.07);   // 살짝 아래에서 올라붙는다
+    lfo.frequency.value = 5.6; lg.gain.setValueAtTime(0, t); lg.gain.linearRampToValueAtTime(0, t + Math.min(0.25, dur * 0.4)); lg.gain.linearRampToValueAtTime(f * 0.016, t + Math.min(0.6, dur * 0.8));
+    lfo.connect(lg); lg.connect(o.frequency); lg.connect(o2.frequency);
+    const end = t + Math.max(0.18, dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + 0.06); g.gain.setValueAtTime(v, end - 0.1); g.gain.exponentialRampToValueAtTime(0.0001, end + 0.12);
+    F.forEach((ff, k) => {
+      const bp = ctx.createBiquadFilter(), fg = ctx.createGain(); bp.type = 'bandpass'; bp.frequency.value = ff; bp.Q.value = 9; fg.gain.value = [2.6, 1.4, 0.55][k];
+      o.connect(bp); bp.connect(fg); fg.connect(g);
+    });
+    const og = ctx.createGain(); og.gain.value = 0.35; o2.connect(og); og.connect(g);
+    g.connect(this.music); g.connect(this.verb); g.connect(this.echo);
+    for (const x of [o, o2, lfo]) { x.start(t); x.stop(end + 0.2); }
   }
 
   snare(t, v) {
