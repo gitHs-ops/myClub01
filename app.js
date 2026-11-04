@@ -105,6 +105,14 @@ place(bouncer, -1.75, 11.15, 0.8); bouncer.crossTo = 1; bouncer.isStaff = true;
   beard.scale.set(1.08, 1, 1.05); head.add(beard);
   const mus = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.016, 0.02), dark); mus.position.set(0, -0.045, 0.142); head.add(mus);
   // 짙은 눈썹, 약간 찌푸린 표정
+  // 티셔츠 글씨
+  {
+    const c = document.createElement('canvas'); c.width = 512; c.height = 160;
+    const g = c.getContext('2d'); g.fillStyle = '#ffffff'; g.font = '900 104px Pretendard, "Malgun Gothic", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('나 마동석', 256, 86);
+    const tx = new THREE.CanvasTexture(c); tx.colorSpace = THREE.SRGBColorSpace; tx.anisotropy = 4;
+    const tee = new THREE.Mesh(new THREE.CylinderGeometry(0.252, 0.252, 0.11, 24, 1, true, -0.95, 1.9), new THREE.MeshStandardMaterial({ map: tx, transparent: true, roughness: 0.8, emissive: 0xffffff, emissiveMap: tx, emissiveIntensity: 0.35, depthWrite: false }));
+    tee.scale.set(1.01, 1, 0.8); tee.position.set(0, 0.41, 0); b.torso.add(tee);
+  }
   // 굵은 팔에 맞춘 팔짱 (팔꿈치가 가슴 밖에 있게)
   const REST = [0, 0.25, 0, -0.2], CROSS_R = [-1.01, -0.43, -0.98, -1.21], CROSS_L = [-1.14, -0.55, -1.0, -1.32];
   const mix = (p, q, k) => p.map((v, i) => v + (q[i] - v) * k);
