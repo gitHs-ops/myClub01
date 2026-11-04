@@ -10,6 +10,23 @@ const rand = (a, b) => a + Math.random() * (b - a);
 export const ROOM = { xMin: -13.4, xMax: 10.6, zMin: -16.9, zMax: 4.5 };
 export const FLOOR = { xMin: -9, xMax: 9, zMin: -17, zMax: -5 };
 export const TABLES = [[-11.8, -13], [-11.8, -8.6], [-11.8, -4.2], [-11.2, 0], [-7.2, 0.4], [-3.8, 0.8], [4, 0.6], [7.8, 0]].map(([x, z], i) => ({ x, z, i, by: null }));
+/* 재즈 바: 플로어는 무대 앞 작은 자리만, 나머지는 앉는 원형 탁자로 채운다. 의자는 탁자마다 넷 */
+export function useJazzLayout() {
+  Object.assign(FLOOR, { xMin: -3.5, xMax: 3.5, zMin: -17, zMax: -13.2 });
+  const spots = [];
+  for (const z of [-11.2, -7.8, -4.4, -1.0]) for (const x of [-11.2, -8.0, -4.8, 4.8, 8.0]) spots.push([x, z]);
+  spots.push([0, -10.2], [0, -6.6], [-6.9, -15.1], [-10.4, -15.1], [6.9, -15.1]);
+  TABLES.length = 0;
+  spots.forEach(([x, z], i) => {
+    const T = { x, z, i, by: null, top: 0.78, seats: [] };
+    [0.785, 2.356, 3.927, 5.498].forEach((a) => {
+      const sx = x + Math.sin(a) * 0.86, sz = z + Math.cos(a) * 0.86;
+      T.seats.push({ x: sx, z: sz, yaw: Math.atan2(x - sx, z - sz), by: null, T });
+    });
+    TABLES.push(T);
+  });
+}
+TABLES.forEach((T) => { T.top = 1.1; T.seats = []; });
 export const BAR_SPOTS = [-12.5, -10, -7.5, -5, -2.5, 0].map((z) => ({ x: 10.2, z, by: null }));
 
 function glowTexture() {
@@ -207,6 +224,7 @@ function buildBackWall(inside, theme, neonList, updaters, flare) {
 }
 
 export function buildWorld(scene, fxState, theme) {
+  if (theme.jazz) useJazzLayout();
   const gt = glowTexture(), bt = beamTexture(), updaters = [];
   const spriteMat = (color, opacity = 1) => new THREE.SpriteMaterial({ map: gt, color, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
   const flare = (color, size, x, y, z, parent = scene, opacity = 1) => { const s = new THREE.Sprite(spriteMat(color, opacity)); s.scale.set(size, size, 1); s.position.set(x, y, z); parent.add(s); return s; };
@@ -459,7 +477,7 @@ export function buildWorld(scene, fxState, theme) {
   flare(theme.jazz ? 0x3b6cff : theme.band ? 0xff7a2e : 0x8b5cf6, 26, 0, 4.8, -23, inside, theme.band ? 0.1 : 0.2);
 
   // LED 바닥
-  const NX = 18, NZ = 12, tiles = new THREE.InstancedMesh(new THREE.BoxGeometry(0.96, 0.03, 0.96), new THREE.MeshBasicMaterial({ toneMapped: false }), NX * NZ);
+  const NX = Math.round(FLOOR.xMax - FLOOR.xMin), NZ = Math.round(FLOOR.zMax - FLOOR.zMin), tiles = new THREE.InstancedMesh(new THREE.BoxGeometry(0.96, 0.03, 0.96), new THREE.MeshBasicMaterial({ toneMapped: false }), NX * NZ);
   const mtx = new THREE.Matrix4();
   for (let ix = 0; ix < NX; ix++) for (let iz = 0; iz < NZ; iz++) { mtx.setPosition(FLOOR.xMin + 0.5 + ix, 0.016, FLOOR.zMin + 0.5 + iz); tiles.setMatrixAt(ix * NZ + iz, mtx); tiles.setColorAt(ix * NZ + iz, new THREE.Color(0)); }
   inside.add(tiles);
@@ -501,16 +519,38 @@ export function buildWorld(scene, fxState, theme) {
     hazes.push({ s, seed: Math.random() * 6, y: s.position.y, x: s.position.x });
   }
 
+  // 재즈 바: 앉는 원형 탁자, 의자, 촛불 (같은 모양은 한 번에 그린다)
+  const tableRings = [];
+  if (theme.jazz) {
+    const woodM = std(0x2e1a0e, { roughness: 0.4 }), brassM = std(0xb08d3a, { roughness: 0.3, metalness: 0.8 }), seatM = std(0x6b1520, { roughness: 0.7 });
+    const nT = TABLES.length, nS = TABLES.reduce((n, T) => n + T.seats.length, 0), o = new THREE.Object3D();
+    const inst = (geo, mat, n) => { const m = new THREE.InstancedMesh(geo, mat, n); inside.add(m); return m; };
+    const tTop = inst(new THREE.CylinderGeometry(0.5, 0.5, 0.04, 28), woodM, nT), tLeg = inst(new THREE.CylinderGeometry(0.045, 0.045, 0.74, 10), brassM, nT), tBase = inst(new THREE.CylinderGeometry(0.24, 0.28, 0.03, 20), brassM, nT);
+    const candle = inst(new THREE.CylinderGeometry(0.035, 0.035, 0.08, 12), glow(0xffc070), nT);
+    const cSeat = inst(new THREE.BoxGeometry(0.42, 0.07, 0.42), seatM, nS), cBack = inst(new THREE.BoxGeometry(0.42, 0.42, 0.06), seatM, nS), cLeg = inst(new THREE.CylinderGeometry(0.03, 0.03, 0.42, 8), brassM, nS);
+    const put = (m, i, x, y, z, yaw = 0) => { o.position.set(x, y, z); o.rotation.set(0, yaw, 0); o.updateMatrix(); m.setMatrixAt(i, o.matrix); };
+    let k = 0;
+    TABLES.forEach((T, i) => {
+      put(tTop, i, T.x, 0.76, T.z); put(tLeg, i, T.x, 0.38, T.z); put(tBase, i, T.x, 0.015, T.z); put(candle, i, T.x, 0.82, T.z);
+      flare(0xffb35c, 0.9, T.x, 0.86, T.z, inside, 0.4);
+      for (const S of T.seats) {
+        const fx = Math.sin(S.yaw), fz = Math.cos(S.yaw);
+        put(cSeat, k, S.x, 0.45, S.z, S.yaw); put(cBack, k, S.x - fx * 0.2, 0.68, S.z - fz * 0.2, S.yaw); put(cLeg, k, S.x, 0.21, S.z); k++;
+      }
+    });
+    const tableLight = new THREE.PointLight(0xffb070, 18, 26, 1.4); tableLight.position.set(-2, 3.2, -6); scene.add(tableLight);
+  }
   // 스탠딩 테이블
   const topM = std(0x20202a, { roughness: 0.48, metalness: 0.2 }), legM = std(0x303038, { roughness: 0.3, metalness: 0.8 });
-  const tableRings = [];
   for (const T of TABLES) {
+    if (!theme.jazz) {
     add(new THREE.CylinderGeometry(0.04, 0.04, 1.05, 10), legM, T.x, 0.53, T.z, inside);
     add(new THREE.CylinderGeometry(0.27, 0.3, 0.04, 20), legM, T.x, 0.02, T.z, inside);
     add(new THREE.CylinderGeometry(0.42, 0.42, 0.04, 28), topM, T.x, 1.08, T.z, inside);
     const ring = add(new THREE.TorusGeometry(0.42, 0.012, 6, 36), glow(0x22d3ee), T.x, 1.06, T.z, inside); ring.rotation.x = Math.PI / 2;
     tableRings.push(ring);
     flare(0x22d3ee, 1.4, T.x, 1.03, T.z, inside, 0.22);
+    }
     // 테이블 번호: 탁자 위 번호판 (어느 쪽에서 봐도 읽힌다)
     const nc = document.createElement('canvas'); nc.width = nc.height = 128;
     const ng = nc.getContext('2d');
@@ -519,8 +559,8 @@ export function buildWorld(scene, fxState, theme) {
     ng.fillStyle = '#ffffff'; ng.font = '800 70px Outfit, Pretendard, sans-serif'; ng.textAlign = 'center'; ng.textBaseline = 'middle'; ng.fillText(String(T.i + 1), 64, 68);
     const nt = new THREE.CanvasTexture(nc); nt.colorSpace = THREE.SRGBColorSpace;
     const num = new THREE.Sprite(new THREE.SpriteMaterial({ map: nt, transparent: true, toneMapped: false }));
-    num.scale.set(0.24, 0.24, 1); num.position.set(T.x, 1.3, T.z); inside.add(num);
-    add(new THREE.CylinderGeometry(0.008, 0.008, 0.12, 6), legM, T.x, 1.15, T.z, inside);
+    num.scale.set(0.24, 0.24, 1); num.position.set(T.x, theme.jazz ? 1.02 : 1.3, T.z); inside.add(num);
+    add(new THREE.CylinderGeometry(0.008, 0.008, 0.12, 6), legM, T.x, theme.jazz ? 0.88 : 1.15, T.z, inside);
   }
 
   // 바
@@ -706,7 +746,7 @@ export function buildWorld(scene, fxState, theme) {
         const cx = ix - NX / 2 + 0.5, cz = iz - NZ / 2 + 0.5, dist = Math.hypot(cx, cz * 1.2);
         let v;
         if (theme.jazz) {   // 재즈 바: 무대 앞만 은은하게, 천천히 숨 쉬듯
-          v = 0.03 + Math.max(0, 1 - Math.hypot(cx, iz + 1) / 7) * (0.1 + 0.03 * Math.sin(t * 0.6));
+          v = 0.06 + (0.5 + 0.5 * Math.sin(ix * 0.9 + iz * 0.6 + t * 0.5)) * 0.08;
         } else if (theme.band) {   // 체크 무늬 디스코 플로어: 박자마다 칸이 번갈아 켜진다
           const on = (ix + iz + step) % 2 === 0;
           v = name === 'drop' ? (on ? 0.62 : 0.07) : name === 'break' ? 0.05 + (0.5 + 0.5 * Math.sin(ix * 0.7 + t)) * 0.16 : on ? 0.3 * (0.45 + clock.kick * 0.55) : 0.05;

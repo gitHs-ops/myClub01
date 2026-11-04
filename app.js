@@ -1,7 +1,7 @@
 import * as THREE from './vendor/three.min.js';
 import { Edm, TRACKS } from './edm.js?v=7';
 import { makePerson, updatePerson, goTo, say, jump, setWardrobe } from './people.js?v=8';
-import { buildWorld, ROOM, FLOOR, TABLES, BAR_SPOTS } from './world.js?v=11';
+import { buildWorld, ROOM, FLOOR, TABLES, BAR_SPOTS } from './world.js?v=12';
 import { VENUES } from './venues.js?v=4';
 import { listTracks, addTrack, putTrack, removeTrack, isAudioFile, titleOf, analyze, isLrcFile, readText, lyricLines, id3Lyrics } from './mylist.js?v=2';
 
@@ -40,6 +40,7 @@ const venue = await new Promise((resolve) => {
   });
 });
 document.title = venue.title;
+if (venue.jazz) { const li = document.querySelector('#steps li[data-step="5"] span'); if (li) li.textContent = '블루스'; }
 setWardrobe(venue.wardrobe);
 
 /* ───── 렌더러 ───── */
@@ -247,7 +248,7 @@ function holdCup(p, cup) {
 }
 const DRINKS = venue.drinks;
 
-const CROWD_FLOOR = lowEnd ? 15 : 24, CROWD_TABLE = lowEnd ? 6 : 10, CROWD_BAR = lowEnd ? 2 : 4;
+const CROWD_FLOOR = venue.jazz ? 0 : lowEnd ? 15 : 24, CROWD_TABLE = venue.jazz ? 0 : lowEnd ? 6 : 10, CROWD_BAR = lowEnd ? 2 : 4;
 const npcs = [];
 const npcCups = (p, d = pick(DRINKS)) => {
   p.cup = makeCup(d);
@@ -278,6 +279,116 @@ for (let i = 0; i < CROWD_TABLE; i++) {
   q.T.by = 'npc'; setRole(p, 'table'); p.danceTo = 1; p.danceStyle = 0; p.groove = 0.45; npcCups(p);
   p.talkTo = 0;
 }
+/* ───── 재즈 바: 앉는 자리와 가끔 나와서 추는 블루스 커플 ───── */
+function walkToSeat(p, S, done = null) {
+  S.by = p; p.seat = S; p.sit = false;
+  goTo(p, S.x, S.z, () => {
+    p.x = S.x; p.z = S.z; p.yawTo = S.yaw; p.sit = true;
+    if (p !== player) { setRole(p, 'table'); p.danceTo = 1; p.danceStyle = 0; p.groove = 0.3; if (p.cup) p.cup.visible = true; }
+    done?.();
+  });
+}
+function sitAt(p, S) { S.by = p; p.seat = S; place(p, S.x, S.z, S.yaw); p.sit = true; setRole(p, 'table'); p.danceTo = 1; p.danceStyle = 0; p.groove = 0.3; p.dance = 1; }
+function leaveSeat(p) { p.sit = false; if (p.seat && p.seat.by === p) p.seat.by = null; p.seat = null; }
+function seatGuest(p) {
+  const free = TABLES.flatMap((T) => T.seats.filter((S) => !S.by && T !== myTable));
+  if (!free.length) { const [x, z] = freeFloorSpot(); goTo(p, x, z, () => { p.yawTo = yawToStage(p.x, p.z); setRole(p, 'floor'); }); return; }
+  free.sort((a, b) => Math.hypot(a.x - p.x, a.z - p.z) - Math.hypot(b.x - p.x, b.z - p.z));
+  walkToSeat(p, free[Math.floor(Math.random() * Math.min(4, free.length))], () => { if (!p.cup) npcCups(p); });
+}
+// 탁자 셋 중 하나는 비워 둔다 (내가 앉을 자리)
+if (venue.jazz) {
+  const cap = lowEnd ? 20 : 36;
+  let n = 0;
+  TABLES.forEach((T) => {
+    if (T.i % 3 === 1 || n >= cap) return;
+    const k = 2 + (T.i % 2), start = T.i % 4;
+    for (let j = 0; j < k && n < cap; j++, n++) { const p = spawn(); npcs.push(p); sitAt(p, T.seats[(start + j * 2 + (j > 1 ? 1 : 0)) % 4]); npcCups(p); p.talkTo = 0; }
+  });
+}
+const couples = [];
+const COUPLE_MAX = lowEnd ? 2 : 3;
+let coupleNext = 0;
+// 마주 보고 안은 자세: 리드는 허리를, 상대는 어깨를
+const LEAD_ARMS = () => [[-1.0, 0.02, -0.42, -0.95], [-1.0, 0.02, -0.42, -0.95]];
+const FOLLOW_ARMS = () => [[-1.55, 0.02, -0.32, -0.8], [-1.55, 0.02, -0.32, -0.8]];
+function coupleSpot() {
+  let best = [0, -15], bd = -1;
+  for (let i = 0; i < 20; i++) {
+    const x = rand(FLOOR.xMin + 0.8, FLOOR.xMax - 0.8), z = rand(FLOOR.zMin + 0.9, FLOOR.zMax - 0.5);
+    const d = Math.min(9, ...couples.map((c) => Math.hypot(c.x - x, c.z - z)));
+    if (d > bd) { bd = d; best = [x, z]; }
+  }
+  return best;
+}
+function startCouple(a, b, x, z, opt = {}) {
+  const c = { a, b, x, z, ang: rand(0, 6.28), until: now() + rand(45, 90), on: false, player: !!opt.player };
+  couples.push(c);
+  a.partner = b; b.partner = a;
+  [a, b].forEach((p) => { if (p !== player) { p.role = 'couple'; p.mingle = false; if (p.cup) p.cup.visible = false; } p.sit = false; p.talkTo = 0; });
+  const hold = () => { c.on = true; [a, b].forEach((p) => { p.danceTo = 1; p.danceStyle = 0; p.groove = 0.28; }); a.armPose = LEAD_ARMS; b.armPose = FOLLOW_ARMS; };
+  if (opt.instant) { place(a, x, z + 0.25); place(b, x, z - 0.25); hold(); return c; }
+  let n = 0; const ready = () => { if (++n === 2) hold(); };
+  goTo(a, x, z + 0.3, ready); goTo(b, x, z - 0.3, ready);
+  return c;
+}
+function endCouple(c) {
+  const i = couples.indexOf(c); if (i < 0) return;
+  couples.splice(i, 1);
+  [c.a, c.b].forEach((p) => {
+    p.armPose = null; p.partner = null;
+    if (p === player) return;
+    if (p.home && (!p.home.by || p.home.by === p)) walkToSeat(p, p.home); else seatGuest(p);
+  });
+}
+const playerCouple = () => couples.find((c) => c.player);
+function pairFromTables(instant = false) {
+  const seated = npcs.filter((n) => n.role === 'table' && n.sit && !n.target && n.seat);
+  const byTable = new Map();
+  seated.forEach((n) => { const T = n.seat.T; if (T !== myTable) byTable.set(T, [...(byTable.get(T) || []), n]); });
+  const tables = [...byTable.values()].filter((g) => g.length >= 2);
+  if (!tables.length) return;
+  const [a, b] = pick(tables);
+  [a, b].forEach((p) => { p.home = p.seat; p.sit = false; });   // 자리는 비워 두되 맡아 둔다
+  const [x, z] = coupleSpot();
+  if (!instant) say(a, pick(['우리 한 곡 출까요?', '이 곡 좋다, 나가요', '천천히 한 곡만요']), 2.2);
+  startCouple(a, b, x, z, { instant });
+}
+let couplesInit = false;
+function updateCouples(dt, t) {
+  if (venue.jazz && !couplesInit) { couplesInit = true; for (let i = 0; i < COUPLE_MAX - 1; i++) pairFromTables(true); }
+  for (const c of couples) {
+    if (!c.on) continue;
+    c.ang += dt * 0.3;
+    const sx = Math.sin(c.ang) * 0.25, sz = Math.cos(c.ang) * 0.25, sway = Math.sin(t * 0.8 + c.x) * 0.04;
+    c.a.x = c.x + sx + sway; c.a.z = c.z + sz; c.b.x = c.x - sx + sway; c.b.z = c.z - sz;
+    c.a.yaw = c.a.yawTo = Math.atan2(-sx, -sz); c.b.yaw = c.b.yawTo = Math.atan2(sx, sz);
+  }
+  if (!venue.jazz) return;
+  for (const c of [...couples]) if (!c.player && c.on && now() > c.until) endCouple(c);
+  if (now() > coupleNext) {
+    coupleNext = now() + rand(15, 32);
+    if (couples.filter((c) => !c.player).length < COUPLE_MAX && Math.random() < 0.7) pairFromTables();
+  }
+}
+/* 나도 블루스: 근처에 앉은 손님 한 분이 나와 함께 춘다 */
+function blues() {
+  if (playerCouple()) { stopBlues(); return; }
+  const cand = npcs.filter((n) => n.role === 'table' && n.sit && !n.target && n.seat).sort((a, b) => Math.hypot(a.x - player.x, a.z - player.z) - Math.hypot(b.x - player.x, b.z - player.z));
+  const n = cand[0];
+  if (!n) { toast('함께 출 분이 없습니다'); return; }
+  n.home = n.seat; n.sit = false;
+  leaveSeat(player); stopMingle();
+  const [x, z] = coupleSpot();
+  say(player, '한 곡 추실래요?', 1.8); later(0.9, () => say(n, pick(['좋아요', '기꺼이요', '천천히 춰요']), 1.8));
+  grooving = true; player.danceStyle = 0; player.groove = 0.28;
+  startCouple(player, n, x, z, { player: true });
+  camSet(cam.thetaTo, 1.34, 5.6, 1.7); setStep(5);
+  toast('블루스: 천천히 돌며 춥니다', 2.4);
+  renderUi();
+}
+function stopBlues() { const c = playerCouple(); if (!c) return; endCouple(c); applyGroove(); renderUi(); }
+
 for (let i = 0; i < CROWD_BAR; i++) {
   const s = BAR_SPOTS[i * 2 % BAR_SPOTS.length], p = spawn(); npcs.push(p); s.by = p;
   place(p, s.x, s.z, Math.PI / 2 + rand(-0.3, 0.3)); setRole(p, 'bar'); npcCups(p); p.danceTo = 1; p.danceStyle = 0; p.groove = 0.3;
@@ -293,7 +404,7 @@ function collide(p) {
   }
   if (p.target || p.isPlayer) {
     for (const o of everyone) {
-      if (o === p || o.isStaff || o.inLine) continue;
+      if (o === p || o.isStaff || o.inLine || o === p.partner) continue;
       const dx = p.x - o.x, dz = p.z - o.z, d = Math.hypot(dx, dz);
       if (d < PERSON_R * 2 && d > 1e-3) {
         const push = PERSON_R * 2 - d, ux = dx / d, uz = dz / d;
@@ -468,6 +579,7 @@ function vipArrived() {
       if (i === 2) { world.setDoor(true); edm.door(); }
       if (i >= path.length) {   // 안으로 들어가면 플로어 손님이 된다
         p.isStaff = false; p.free = false; npcs.push(p);
+        if (venue.jazz) { seatGuest(p); return; }
         const [x, z] = freeFloorSpot(); goTo(p, x, z, () => { p.yawTo = yawToStage(p.x, p.z); setRole(p, 'floor'); });
         return;
       }
@@ -514,6 +626,7 @@ function npcEnters(p) {
       p.inLine = false;
       goTo(p, 0, 8, () => { if (phase === 'queue') world.setDoor(false); goTo(p, 0, 5.2, () => {
         p.free = false; npcs.push(p);
+        if (venue.jazz) { seatGuest(p); return; }
         const [x, z] = freeFloorSpot();
         goTo(p, x, z, () => { p.yawTo = yawToStage(p.x, p.z); setRole(p, 'floor'); });
       }); });
@@ -575,6 +688,10 @@ function enterClub() {
 /* 3. 스탠딩 테이블과 음료 */
 function nearestFreeTable() {
   let best = null, bd = 1e9;
+  if (venue.jazz) {
+    for (const T of TABLES) { const free = T.seats.filter((S) => !S.by).length; if (!free) continue; const d = Math.hypot(T.x - player.x, T.z - player.z) + (T.by === 'npc' || T.seats.some((S) => S.by && S.by !== player) ? 6 : 0); if (d < bd) { bd = d; best = T; } }
+    return best || TABLES[0];
+  }
   for (const T of TABLES) { if (T.by === 'npc') continue; const d = Math.hypot(T.x - player.x, T.z - player.z); if (d < bd) { bd = d; best = T; } }
   return best || TABLES[0];
 }
@@ -603,12 +720,13 @@ function buddyToStage(x, z) {
   goTo(n, sx, sz, () => { n.yawTo = Math.atan2(player.x - n.x, player.z - n.z); setRole(n, 'floor'); n.nextAct = now() + rand(8, 20); });
 }
 function walkPlayer(x, z, done = null) {
-  stopMingle(x, z);
+  stopMingle(x, z); leaveSeat(player); stopBlues();
   dest.position.set(x, 0.045, z); dest.visible = true;
   goTo(player, x, z, () => { dest.visible = false; done?.(); renderUi(); });
   renderUi();
 }
 function walkToTable(T) {
+  if (venue.jazz) { sitAtTable(T); return; }
   const dirX = player.x - T.x, dirZ = player.z - T.z, d = Math.hypot(dirX, dirZ) || 1;
   const x = T.x + (dirX / d) * 0.72, z = T.z + (dirZ / d) * 0.72;
   if (T.by === 'npc') { toast('다른 손님들이 쓰는 테이블입니다. 함께 서 볼까요?', 2.2); }
@@ -621,6 +739,24 @@ function walkToTable(T) {
     if (!myDrink.def) { caption('어떤 음료로 할까요?'); openDrinks(); }
     if (step < 3) setStep(3);
   });
+}
+function sitAtTable(T) {
+  stopBlues();
+  if (player.seat?.T === T && player.sit) return;
+  const free = T.seats.filter((S) => !S.by || S.by === player).sort((a, b) => Math.hypot(a.x - player.x, a.z - player.z) - Math.hypot(b.x - player.x, b.z - player.z));
+  if (!free.length) { toast('그 탁자는 자리가 다 찼습니다. 빈 자리로 갑니다', 2.2); const N = nearestFreeTable(); if (N !== T) sitAtTable(N); return; }
+  if (T.seats.some((S) => S.by && S.by !== player)) toast('손님들과 합석합니다', 1.8);
+  leaveSeat(player); stopMingle();
+  myTable = T;
+  camSet(clamp(-T.x * 0.05, -0.5, 0.5), 1.2, 4.2, 1.2);
+  dest.visible = false;
+  walkToSeat(player, free[0], () => {
+    if (myDrink.table !== T && myDrink.cup) placeCupOnTable(T);
+    if (!myDrink.def) { caption('어떤 음료로 할까요?'); openDrinks(); }
+    if (step < 3) setStep(3);
+    renderUi();
+  });
+  renderUi();
 }
 function openDrinks(offer = false) {
   const box = $('drinkList'); box.textContent = '';
@@ -638,7 +774,7 @@ function openDrinks(offer = false) {
 }
 function placeCupOnTable(T) {
   const k = Math.atan2(player.x - T.x, player.z - T.z) + 0.75;
-  myDrink.pos.set(T.x + Math.sin(k) * 0.24, 1.17, T.z + Math.cos(k) * 0.24);
+  myDrink.pos.set(T.x + Math.sin(k) * 0.24, T.top + 0.07, T.z + Math.cos(k) * 0.24);
   myDrink.table = T;
   myDrink.cup.position.copy(myDrink.pos);
 }
@@ -777,7 +913,7 @@ function goStage() {
   camSet(0.18, 1.45, 6.4, 1.75);
   let best = [0, -12], bd = 0;
   for (let i = 0; i < 16; i++) {
-    const x = rand(-4, 4), z = rand(-14.5, -11);
+    const x = venue.jazz ? rand(FLOOR.xMin + 0.8, FLOOR.xMax - 0.8) : rand(-4, 4), z = venue.jazz ? rand(FLOOR.zMin + 1, FLOOR.zMax - 0.5) : rand(-14.5, -11);
     const near = Math.min(...npcs.filter((n) => n.role === 'floor').map((n) => Math.hypot(n.x - x, n.z - z)));
     if (near > bd) { bd = near; best = [x, z]; }
   }
@@ -787,7 +923,7 @@ function goStage() {
     player.yawTo = 0 + Math.PI;
     edm.setRoom(3); stageArrived = true;
     grooving = true; if (grooveLevel === 0) grooveLevel = 1; applyGroove();
-    toast('메인 스테이지 앞입니다. 이웃과 어울려 보세요', 3);
+    toast(venue.jazz ? '무대 앞 작은 플로어입니다' : '메인 스테이지 앞입니다. 이웃과 어울려 보세요', 3);
     renderUi();
   });
 }
@@ -876,7 +1012,7 @@ function renderUi() {
   const list = [];
   const atTable = inTableReach();
   const hasCup = !!myDrink.cup;
-  if (!atTable && (!myTable || !hasCup || step < 4)) list.push({ label: '스탠딩 테이블로 가기', primary: step === 3, fn: () => walkToTable(myTable || nearestFreeTable()) });
+  if (!atTable && (!myTable || !hasCup || step < 4)) list.push({ label: venue.jazz ? '자리에 앉기' : '스탠딩 테이블로 가기', primary: step === 3, fn: () => walkToTable(myTable || nearestFreeTable()) });
   if (atTable && !hasCup) list.push({ label: '음료 고르기', primary: true, fn: () => openDrinks() });
   if (atTable && hasCup) {
     if (myDrink.level > 0) list.push({ label: player.sipTo ? '마시는 중' : `한 모금 마시기 (${Math.round(myDrink.level * 100)}%)`, primary: step === 3, disabled: !!player.sipTo, fn: sip });
@@ -887,13 +1023,17 @@ function renderUi() {
   if (myDrink.sips > 0 || step >= 4) {
     list.push({ label: grooving ? '건들거리기 멈추기' : '건들거리기', primary: step === 4 && !grooving, on: grooving, fn: toggleGroove });
     if (grooving) list.push({ label: `흥: ${GROOVES[grooveLevel].name}`, fn: nextGrooveLevel });
-    if (!isShuffle()) list.push({ label: '셔플댄스', fn: () => shuffleDance() });
+    if (venue.jazz) list.push({ label: playerCouple() ? '블루스 그만' : '블루스 추기', on: !!playerCouple(), primary: step === 4 && grooveBeats >= 8 && !playerCouple(), fn: blues });
+    else if (!isShuffle()) list.push({ label: '셔플댄스', fn: () => shuffleDance() });
     else {
       list.push({ label: `셔플: ${SHUFFLES[shuffleIdx].name} ▸`, on: true, fn: nextShuffle });
       list.push({ label: '셔플 그만', fn: stopShuffle });
     }
   }
-  if (step >= 4 && !onFloor() && !player.target) {
+  if (venue.jazz) {
+    if (step >= 4 && !player.target && !playerCouple() && !onFloor()) list.push({ label: '플로어로 나가기', fn: goStage });
+    if (step >= 4 && !player.target && !atTable && myTable) list.push({ label: '내 자리로', fn: () => walkToTable(myTable) });
+  } else if (step >= 4 && !onFloor() && !player.target) {
     list.push({ label: '메인 스테이지로 가기', primary: grooveBeats >= 8, fn: goStage });
     if (!atTable && myTable) list.push({ label: '테이블로', fn: () => walkToTable(myTable) });
   } else if (step >= 4 && onFloor() && (stageArrived || !player.target)) {
@@ -907,11 +1047,13 @@ function renderUi() {
   actions(list);
 
   if (player.target) caption('걸어가는 중입니다');
-  else if (step === 3 && !atTable) caption('스탠딩 테이블로 가서 목을 축이세요', '버튼을 누르거나 빛나는 테이블을 눌러도 됩니다');
+  else if (step === 3 && !atTable) caption(venue.jazz ? '빈 자리에 앉아 한 잔 하세요' : '스탠딩 테이블로 가서 목을 축이세요', venue.jazz ? '버튼을 누르거나 촛불 켜진 탁자를 눌러도 됩니다' : '버튼을 누르거나 빛나는 테이블을 눌러도 됩니다');
   else if (step === 3 && !hasCup) caption('어떤 음료로 할까요?');
   else if (step === 3) caption('시원하게 한 모금 하세요');
   else if (step === 4 && !grooving) caption('음악에 몸을 맡겨 보세요', '건들거리기를 누르면 박자에 맞춰 흔듭니다');
-  else if (step === 4) caption(grooveBeats < 8 ? `좋습니다. 그대로 리듬을 타세요` : '몸이 풀렸습니다. 메인 스테이지로 가 볼까요?');
+  else if (step === 4) caption(grooveBeats < 8 ? `좋습니다. 그대로 리듬을 타세요` : venue.jazz ? '블루스 추기를 누르면 근처 손님과 함께 춥니다' : '몸이 풀렸습니다. 메인 스테이지로 가 볼까요?');
+  else if (venue.jazz && playerCouple()) caption('천천히 돌며 블루스를 춥니다', '블루스 그만을 누르면 자리로 돌아갑니다');
+  else if (venue.jazz) caption('');
   else if (step === 5 && onFloor() && !mingling.length) caption('어울리기를 누르면 주변 사람들이 모입니다');
   else if (step === 5 && mingling.length) caption(`함께 ${mingling.length + 1}명이 어울리는 중입니다`, hi5 ? `하이파이브 ${hi5}회` : '모두 내 동작을 따라 합니다. 흥·셔플·손 들기·점프를 바꿔 보세요');
   else if (step === 5) caption('메인 스테이지로 가서 사람들과 어울려 보세요');
@@ -1201,7 +1343,7 @@ function npcTick(n, t, clock) {
       const [x, z] = freeFloorSpot();
       goTo(n, x, z, () => { n.yawTo = yawToStage(n.x, n.z); n.danceTo = 1; });
     }
-  } else if (n.cup) {
+  } else if (n.cup && n.role !== 'couple') {
     n.sipTo = 1; later(1.5, () => { n.sipTo = 0; });
     if (Math.random() < 0.3) say(n, pick(venue.tableTalk), 2);
   }
@@ -1241,6 +1383,7 @@ function frame(nowMs) {
     const az = (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0) - (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0);
     if (ax || az) {
       const sin = Math.sin(cam.theta), cos = Math.cos(cam.theta), wx = ax * cos + az * sin, wz = -ax * sin + az * cos, l = Math.hypot(wx, wz);
+      if (player.sit || player.partner) { leaveSeat(player); stopBlues(); }
       player.target = { x: player.x + (wx / l) * 0.8, z: player.z + (wz / l) * 0.8 }; player.onArrive = null;
       player.target.x = clamp(player.target.x, ROOM.xMin, ROOM.xMax); player.target.z = clamp(player.target.z, ROOM.zMin, ROOM.zMax);
       dest.visible = false;
@@ -1302,6 +1445,7 @@ function frame(nowMs) {
   }
   if (tray.visible) { waiter.arms[1].h.getWorldPosition(tray.position); tray.position.y += 0.02; }
   syncMingle();
+  updateCouples(dt, t);
   if (phase === 'room' && (clock.section.name === 'drop')) crowdBeat(clock); else crowdBeat.last = -1;
   if (clock.section.name !== 'drop') dropSeen = -1;
 
