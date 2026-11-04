@@ -932,7 +932,7 @@ function placeCupOnTable(T) {
   myDrink.table = T;
   myDrink.cup.position.copy(myDrink.pos);
 }
-/* 재즈 바: 주문하면 홀 직원이 쟁반에 받쳐 자리로 가져다준다 */
+/* 주문하면 홀 직원이 쟁반에 받쳐 자리로 가져다준다 */
 let serving = false;
 function serveDrink(d) {
   if (sending) { later(1, () => serveDrink(d)); return; }
@@ -961,13 +961,7 @@ function serveDrink(d) {
     });
   });
 }
-function orderDrink(d) {
-  if (venue.jazz) { serveDrink(d); return; }
-  if (myDrink.cup) { myDrink.cup.parent?.remove(myDrink.cup); }
-  myDrink.def = d; myDrink.level = 1; myDrink.cup = makeCup(d); player.sipHigh = !!d.noStraw;
-  placeCupOnTable(myTable || nearestFreeTable());
-  edm.clink(); toast(`${d.name} 나왔습니다`); renderUi();
-}
+const orderDrink = (d) => serveDrink(d);
 /* 같이 온 사람에게 권하기: 새 잔을 건네고, 내 잔이 있으면 함께 건배한다 */
 let offering = false;
 const buddyHere = () => !!buddy && buddy.role === 'table' && !buddy.target && Math.hypot(buddy.x - player.x, buddy.z - player.z) < 2.6;
