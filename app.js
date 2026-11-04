@@ -919,13 +919,34 @@ let saved = [], temp = [], nowFile = null, nowUrl = null, armedDelete = null, te
 const myItems = () => [...saved, ...temp];
 /* 가사(자막) */
 let lyricsOn = localStorage.getItem('clubpulse-lyrics') !== 'off', lyr = null, lyrIdx = -2, lyrItem = null;
+/* 가사는 실내 왼쪽 벽 전광판에만 띄운다 */
+const lyBoard = (() => {
+  const c = document.createElement('canvas'); c.width = 2048; c.height = 400;
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(13, 2.54), new THREE.MeshBasicMaterial({ map: tex, transparent: true, toneMapped: false }));
+  m.position.set(-13.86, 3.65, -6); m.rotation.y = Math.PI / 2; m.visible = false; scene.add(m);
+  return { c, g: c.getContext('2d'), tex, m };
+})();
+function drawBoard(now, next) {
+  const { c, g, tex } = lyBoard, W = c.width, H = c.height, acc = venue.band ? '#ffb347' : '#ff4fd8';
+  g.clearRect(0, 0, W, H);
+  g.fillStyle = 'rgba(8,6,18,0.78)'; g.beginPath(); g.roundRect(6, 6, W - 12, H - 12, 40); g.fill();
+  g.lineWidth = 6; g.strokeStyle = acc; g.stroke();
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  const fit = (text, size, weight, maxW) => { let s = size; do { g.font = `${weight} ${s}px Pretendard, "Malgun Gothic", sans-serif`; s -= 6; } while (g.measureText(text).width > maxW && s > 40); };
+  fit(now, 150, 800, W - 140); g.shadowColor = acc; g.shadowBlur = 34; g.fillStyle = '#ffffff'; g.fillText(now, W / 2, next ? H * 0.4 : H / 2);
+  g.shadowBlur = 0;
+  if (next) { fit(next, 78, 600, W - 200); g.fillStyle = 'rgba(255,255,255,0.55)'; g.fillText(next, W / 2, H * 0.78); }
+  tex.needsUpdate = true;
+}
 function setLyrics(it) {
   lyrItem = it; lyrIdx = -2;
   lyr = it?.lyrics ? lyricLines(it.lyrics, edm.fileEl?.duration || it.analysis?.duration) : null;
   $('btnLyrics').hidden = !lyr; $('btnLyrics').classList.toggle('on', lyricsOn);
   $('btnLyrics').setAttribute('aria-pressed', String(lyricsOn));
-  $('lyrics').hidden = !(lyr && lyricsOn);
-  $('lyNow').textContent = ''; $('lyNext').textContent = '';
+  $('lyrics').hidden = true;
+  lyBoard.m.visible = !!(lyr && lyricsOn);
+  if (lyBoard.m.visible) drawBoard('♪', lyr.lines[0]?.text || '');
 }
 function updateLyrics() {
   if (!lyr || !lyricsOn || !nowFile || !edm.fileEl) return;
@@ -935,8 +956,7 @@ function updateLyrics() {
   if (i === lyrIdx) return;
   lyrIdx = i;
   const now = i >= 0 ? L[i].text : '', next = L.slice(i + 1).find((l) => l.text)?.text || '';
-  $('lyNow').textContent = now || '♪'; $('lyNext').textContent = next;
-  $('lyNow').classList.remove('pop'); void $('lyNow').offsetWidth; $('lyNow').classList.add('pop');
+  drawBoard(now || '♪', next);
 }
 async function findId3(it) {
   if (it.lyrics || it.id3Checked || !/mpeg|mp3/i.test(it.type || '') && !/\.mp3$/i.test(it.name)) return;
@@ -1099,7 +1119,7 @@ async function addFiles(files, keep) {
   $('mlTempInput').onchange = (e) => { const f = [...e.target.files]; e.target.value = ''; addFiles(f, false); };
   $('btnLyrics').onclick = () => {
     lyricsOn = !lyricsOn; localStorage.setItem('clubpulse-lyrics', lyricsOn ? 'on' : 'off');
-    setLyrics(nowFile); toast(lyricsOn ? '가사를 켭니다' : '가사를 끕니다', 1.4);
+    setLyrics(nowFile); toast(lyricsOn ? '가사를 켭니다 (왼쪽 벽 전광판)' : '가사를 끕니다', 1.4);
   };
   $('lySave').onclick = () => saveLyrics($('lyText').value);
   $('lyClear').onclick = () => { $('lyText').value = ''; $('lyText').focus(); };
