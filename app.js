@@ -352,6 +352,104 @@ function layQueue() {
     goTo(p, LINE_X(i), LINE_Z, () => { p.yawTo = -Math.PI / 2 + rand(-0.15, 0.15); p.danceTo = dance || 1; });
   });
 }
+/* VIP: 줄을 서 있으면 가끔 리무진이 서고, VIP가 일행과 내려 줄을 건너뛰고 들어간다 */
+const LIMO_Z = 17.4;
+let camFocus = null;   // 잠깐 다른 곳을 비출 때 (리무진)
+const limo = (() => {
+  const g = new THREE.Group(), white = new THREE.MeshStandardMaterial({ color: 0xf4f4f5, roughness: 0.18, metalness: 0.55 });
+  const glass = new THREE.MeshStandardMaterial({ color: 0x0b0d14, roughness: 0.05, metalness: 0.9 }), chrome = new THREE.MeshStandardMaterial({ color: 0xe5e7eb, roughness: 0.15, metalness: 1 });
+  const bx = (w, h, d, m, x, y, z) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); g.add(o); return o; };
+  bx(8.4, 0.72, 1.92, white, 0, 0.62, 0);
+  bx(6.3, 0.5, 1.78, glass, -0.25, 1.22, 0);
+  bx(6.0, 0.06, 1.74, white, -0.25, 1.49, 0);
+  bx(8.42, 0.05, 1.94, chrome, 0, 0.5, 0);
+  [-3.2, -1.1, 1.0].forEach((x) => bx(0.06, 0.5, 1.8, white, x, 1.22, 0));   // 창 기둥
+  const wheel = new THREE.CylinderGeometry(0.36, 0.36, 0.26, 18), tire = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.8 });
+  [[3.0, 0.92], [3.0, -0.92], [-3.0, 0.92], [-3.0, -0.92]].forEach(([x, z]) => { const w = new THREE.Mesh(wheel, tire); w.rotation.x = Math.PI / 2; w.position.set(x, 0.36, z); g.add(w); });
+  const glowM = (c) => new THREE.MeshBasicMaterial({ color: c, toneMapped: false });
+  [-0.65, 0.65].forEach((z) => { bx(0.05, 0.12, 0.34, glowM(0xffffff), 4.21, 0.72, z); bx(0.05, 0.1, 0.34, glowM(0xff2020), -4.21, 0.72, z); });
+  const under = new THREE.Mesh(new THREE.PlaneGeometry(8, 1.6), new THREE.MeshBasicMaterial({ color: 0x8b5cf6, transparent: true, opacity: 0.35, toneMapped: false, depthWrite: false }));
+  under.rotation.x = -Math.PI / 2; under.position.y = 0.03; g.add(under);   // 바닥 무드등
+  g.visible = false; scene.add(g);
+  return { g, x: -80, v: 0, state: 'off' };
+})();
+const vipEvent = { at: 0, done: 0 };
+const forceVip = /[?&]vip\b/.test(location.search);
+function vipLook(kind) {
+  const m = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.5, ...o });
+  if (kind === 'vip') return { style: 0, top: m(0x0b0b0f, { roughness: 0.35 }), bottom: m(0x0b0b0f), shoe: m(0x2a1a10, { roughness: 0.2 }), skirt: false, height: 1.05, hair: m(0x111111) };
+  const dress = kind === 'a' ? m(0xc8102e, { roughness: 0.25, metalness: 0.35 }) : m(0xd4af37, { roughness: 0.2, metalness: 0.75 });
+  return { style: kind === 'a' ? 2 : 1, top: dress, bottom: dress, skirt: true, shoe: m(0x111111, { roughness: 0.15 }), height: 0.99, hair: m(kind === 'a' ? 0x1a1210 : 0xe8c872) };
+}
+function dressUpVip(p) {
+  const dark = new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 0.1, metalness: 0.6 }), gold = new THREE.MeshStandardMaterial({ color: 0xffd34d, roughness: 0.2, metalness: 1 });
+  const shades = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.045, 0.03), dark); shades.position.set(0, 0.02, 0.13); p.head.add(shades);
+  const chain = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.009, 6, 20), gold); chain.rotation.x = Math.PI / 2 + 0.35; chain.position.set(0, 0.5, 0.03); p.torso.add(chain);
+}
+function startVip() {
+  vipEvent.done++; queueBusy = true;
+  camFocus = [1.2, 13.6]; camSet(0.9, 1.2, 12.5, 1.2);
+  toast('리무진 한 대가 다가옵니다', 2.4);
+  limo.x = -70; limo.v = 16; limo.state = 'in'; limo.g.visible = true; limo.g.position.set(limo.x, 0, LIMO_Z);
+  edm.door?.();
+  later(1.2, () => { const p = queue.find((q) => q !== player); if (p) say(p, pick(['어, 리무진이다!', '저 차 뭐야?', '와, 리무진!']), 2); });
+}
+function vipArrived() {
+  const party = ['vip', 'a', 'b'].map((k, i) => {
+    const p = spawn(vipLook(k)); p.isStaff = true; p.speed = 1.25;
+    place(p, 0.9 - i * 0.75, LIMO_Z - 1.15, Math.PI);
+    if (k === 'vip') dressUpVip(p);
+    return p;
+  });
+  const [vip, a, b] = party;
+  say(vip, '오늘 자리 있지?', 1.8);
+  toast('VIP가 일행과 내려 줄을 건너뛰고 들어갑니다', 2.8);
+  later(0.6, () => { say(queue.find((q) => q !== player) || bouncer, pick(['VIP인가 봐요', '연예인 아니에요?', '우린 언제 들어가…']), 2.2); });
+  bouncer.crossTo = 0; bouncer.yawTo = 2.4;
+  later(1.4, () => say(bouncer, 'VIP님, 바로 모시겠습니다', 2.2));
+  const path = [[0.15, 15.2], [0.1, 12.6], [0, 10.9], [0, 8.2], [0, 5.3]];
+  const walk = (p, dx, delay) => {
+    let i = 0;
+    const next = () => {
+      if (i === 2) { world.setDoor(true); edm.door(); }
+      if (i >= path.length) {   // 안으로 들어가면 플로어 손님이 된다
+        p.isStaff = false; p.free = false; npcs.push(p);
+        const [x, z] = freeFloorSpot(); goTo(p, x, z, () => { p.yawTo = yawToStage(p.x, p.z); setRole(p, 'floor'); });
+        return;
+      }
+      const [x, z] = path[i++]; goTo(p, x + dx, z, next);
+    };
+    later(delay, next);
+  };
+  walk(vip, 0, 0.6); walk(a, -0.5, 1.0); walk(b, 0.5, 1.2);
+  later(2.8, () => say(a, pick(['여기 분위기 좋다!', '오늘 달려요!']), 1.8));
+  // 일행이 문을 지나면 줄을 다시 움직인다
+  const wait = () => {
+    if (party.every((p) => p.z < 8.6)) {
+      if (phase === 'queue') world.setDoor(false);
+      bouncer.crossTo = 1; bouncer.yawTo = 0.8;
+      queueBusy = false; queueTimer = 2.4;
+      limo.state = 'out'; limo.v = 0.5;
+      later(2.5, () => { camFocus = null; if (phase === 'queue') camSet(0.82, 1.46, 8.2, 2); });
+      return;
+    }
+    later(0.3, wait);
+  };
+  later(3, wait);
+}
+function updateLimo(dt) {
+  if (limo.state === 'off') return;
+  if (limo.state === 'in') {
+    limo.v = Math.max(0.6, Math.min(16, -limo.x * 0.85));
+    limo.x += limo.v * dt;
+    if (limo.x >= -0.02) { limo.x = 0; limo.state = 'park'; vipArrived(); }
+  } else if (limo.state === 'out') {
+    limo.v = Math.min(18, limo.v + 5 * dt); limo.x += limo.v * dt;
+    if (limo.x > 85) { limo.state = 'off'; limo.g.visible = false; }
+  }
+  limo.g.position.x = limo.x;
+}
+
 function npcEnters(p) {
   queue.shift(); queueBusy = true; p.free = true; p.danceTo = 0;
   goTo(p, 0.75, 11.4, () => {
@@ -951,6 +1049,8 @@ function frame(nowMs) {
   if (phase === 'queue' && grooving) { player.danceStyle = 0; player.groove = 0.42; }
 
   // 줄
+  updateLimo(dt);
+  if (phase === 'queue' && !vipEvent.done && vipEvent.at && t > vipEvent.at && !queueBusy && limo.state === 'off') startVip();
   if (phase === 'queue') {
     queueTimer -= dt;
     if (queueTimer <= 0 && !queueBusy) {
@@ -1028,7 +1128,8 @@ function frame(nowMs) {
 
   // 카메라
   cam.theta = damp(cam.theta, cam.thetaTo, 4, dt); cam.phi = damp(cam.phi, cam.phiTo, 4, dt); cam.dist = damp(cam.dist, cam.distTo, 4, dt);
-  cam.x = damp(cam.x, player.x, 6, dt); cam.y = damp(cam.y, cam.lookY, 3, dt); cam.z = damp(cam.z, player.z, 6, dt);
+  const fx0 = camFocus ? camFocus[0] : player.x, fz0 = camFocus ? camFocus[1] : player.z, fk = camFocus ? 1.6 : 6;
+  cam.x = damp(cam.x, fx0, fk, dt); cam.y = damp(cam.y, cam.lookY, 3, dt); cam.z = damp(cam.z, fz0, fk, dt);
   // 드롭에서 살짝 울린다
   const shake = venue.shake && fxState.full && clock.section.name === 'drop' ? clock.kick * 0.022 : 0;
   tmpTarget.set(cam.x, cam.y + shake, cam.z);
@@ -1062,7 +1163,9 @@ edm.setRoom(0);
 $('gate').hidden = true; $('hud').hidden = false; $('bottom').hidden = false;
 $('nowName').textContent = edm.track.name;
 phase = 'queue'; setupQueue(); setStep(1); renderUi();
+// 가끔(10번 중 4번) 줄 서 있는 동안 VIP가 온다. 주소 끝에 ?vip를 붙이면 항상 온다
+if (forceVip || Math.random() < 0.4) vipEvent.at = now() + 2.2;
 camSet(0.82, 1.46, 8.2, 2);
 
 // 시험용 접근점
-window.club = { edm, bouncer, player, npcs, waiter, tray, TABLES, everyone, performers, renderer, scene, camera, buddy: () => buddy, state: () => ({ phase, step, grooving, grooveBeats, hi5, mingling: mingling.length, sips: myDrink.sips, x: player.x, z: player.z, queue: queue.indexOf(player) }), clockNow: () => edm.clock() };
+window.club = { edm, bouncer, limo, vipEvent, queue: () => queue, player, npcs, waiter, tray, TABLES, everyone, performers, renderer, scene, camera, buddy: () => buddy, state: () => ({ phase, step, grooving, grooveBeats, hi5, mingling: mingling.length, sips: myDrink.sips, x: player.x, z: player.z, queue: queue.indexOf(player) }), clockNow: () => edm.clock() };
