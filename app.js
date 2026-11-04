@@ -1,6 +1,6 @@
 import * as THREE from './vendor/three.min.js';
 import { Edm, TRACKS } from './edm.js?v=7';
-import { makePerson, updatePerson, goTo, say, jump, setWardrobe } from './people.js?v=8';
+import { makePerson, updatePerson, goTo, say, jump, setWardrobe } from './people.js?v=9';
 import { buildWorld, ROOM, FLOOR, TABLES, BAR_SPOTS } from './world.js?v=13';
 import { VENUES } from './venues.js?v=4';
 import { listTracks, addTrack, putTrack, removeTrack, isAudioFile, titleOf, analyze, isLrcFile, readText, lyricLines, id3Lyrics } from './mylist.js?v=2';
@@ -587,11 +587,18 @@ const endPtr = (e) => {
 canvas.addEventListener('pointerup', endPtr); canvas.addEventListener('pointercancel', endPtr);
 canvas.addEventListener('wheel', (e) => { e.preventDefault(); cam.distTo = clamp(cam.distTo * (1 + e.deltaY * 0.001), 2.6, 13); }, { passive: false });
 
+const seatPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.47);
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), hitP = new THREE.Vector3();
 function tapFloor(cx, cy) {
   if (!freeWalk()) return;
   ndc.set((cx / innerWidth) * 2 - 1, -(cy / innerHeight) * 2 + 1);
   ray.setFromCamera(ndc, camera);
+  // 재즈 바: 의자를 누르면 그 의자에 앉는다 (의자 높이에서 맞춰 본다)
+  if (venue.jazz && ray.ray.intersectPlane(seatPlane, hitP)) {
+    let best = null, bd = 0.42;
+    for (const T of TABLES) for (const S of T.seats) { const d = Math.hypot(S.x - hitP.x, S.z - hitP.z); if (d < bd) { bd = d; best = S; } }
+    if (best) { sitAtTable(best.T, best); return; }
+  }
   if (!ray.ray.intersectPlane(groundPlane, hitP)) return;
   const near = TABLES.find((T) => Math.hypot(T.x - hitP.x, T.z - hitP.z) < 0.8);
   if (near) { walkToTable(near); return; }
@@ -884,10 +891,11 @@ function walkToTable(T) {
     if (step < 3) setStep(3);
   });
 }
-function sitAtTable(T) {
+function sitAtTable(T, want = null) {
   stopBlues();
-  if (player.seat?.T === T && player.sit) return;
-  const free = T.seats.filter((S) => !S.by || S.by === player).sort((a, b) => Math.hypot(a.x - player.x, a.z - player.z) - Math.hypot(b.x - player.x, b.z - player.z));
+  if (want && want.by && want.by !== player) { toast('다른 손님이 앉은 자리입니다', 1.8); return; }
+  if (want ? player.seat === want && player.sit : player.seat?.T === T && player.sit) return;
+  const free = want ? [want] : T.seats.filter((S) => !S.by || S.by === player).sort((a, b) => Math.hypot(a.x - player.x, a.z - player.z) - Math.hypot(b.x - player.x, b.z - player.z));
   if (!free.length) { toast('그 탁자는 자리가 다 찼습니다. 빈 자리로 갑니다', 2.2); const N = nearestFreeTable(); if (N !== T) sitAtTable(N); return; }
   if (T.seats.some((S) => S.by && S.by !== player)) toast('손님들과 합석합니다', 1.8);
   leaveSeat(player); stopMingle();
@@ -895,6 +903,7 @@ function sitAtTable(T) {
   myTable = T;
   camSet(clamp(-T.x * 0.05, -0.5, 0.5), 1.2, 4.2, 1.2);
   dest.visible = false;
+  player.lastSeat = free[0];
   walkToSeat(player, free[0], () => {
     if (myDrink.table !== T && myDrink.cup) placeCupOnTable(T);
     if (!myDrink.def) { caption('어떤 음료로 할까요?'); openDrinks(); }
@@ -1210,7 +1219,7 @@ function renderUi() {
   }
   if (venue.jazz) {
     if (step >= 4 && !player.target && !playerCouple() && !onFloor()) list.push({ label: '플로어로 나가기', fn: goStage });
-    if (step >= 4 && !player.target && !atTable && myTable) list.push({ label: '내 자리로', fn: () => walkToTable(myTable) });
+    if (step >= 4 && !player.target && !player.sit && myTable) list.push({ label: '내 자리로', fn: () => sitAtTable(myTable, player.lastSeat && (!player.lastSeat.by || player.lastSeat.by === player) ? player.lastSeat : null) });
   } else if (step >= 4 && !onFloor() && !player.target) {
     list.push({ label: '메인 스테이지로 가기', primary: grooveBeats >= 8, fn: goStage });
     if (!atTable && myTable) list.push({ label: '테이블로', fn: () => walkToTable(myTable) });

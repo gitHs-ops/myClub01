@@ -272,6 +272,15 @@ export function updatePerson(p, dt, t, clock, collide) {
   const swing = Math.sin(p.walkPhase) * 0.52 * p.walk;
   armL = [armL[0] - swing, armL[1], armL[2], armL[3] - 0.16 * p.walk];
   armR = [armR[0] + swing, armR[1], armR[2], armR[3] - 0.16 * p.walk];
+  // 앉아 있을 때: 사람마다 손을 두는 자리가 다르다 (탁자 위 · 무릎 · 팔짱 · 한 손은 탁자, 한 손은 무릎)
+  if (p.sit && !p.armPose) {
+    if (p.sitStyle == null) p.sitStyle = Math.floor(Math.random() * 4);
+    const br = Math.sin(t * 0.9 + p.phase) * 0.03;
+    const TABLE = [-0.62 + br, 0.12, -0.25, -1.05], LAP = [-0.28, 0.1, -0.12, -0.75 + br], CROSS = [-0.62, 0.24, -0.5, -1.75];
+    const st = p.sitStyle;
+    armL = st === 0 ? TABLE : st === 1 ? LAP : st === 2 ? CROSS : TABLE;
+    armR = st === 0 ? TABLE : st === 1 ? LAP : st === 2 ? [-0.72, 0.24, -0.5, -1.75] : LAP;
+  }
 
   // 잔을 든 손은 가슴 앞에 둔다
   if (p.cup) armR = blend(armR, [-0.1, 0.3, -0.35, -1.6], 0.85);
@@ -345,15 +354,17 @@ export function updatePerson(p, dt, t, clock, collide) {
   }
   // 앉기: 허벅지는 앞으로, 정강이는 아래로, 무릎은 살짝 벌린다
   if (p.sit) {
-    [-1, 1].forEach((s) => { const leg = p.legs[s]; leg.t.rotation.set(-1.45, 0, s * 0.3); leg.k.rotation.x = 1.5; leg.f.rotation.x = -0.05; });
-    hipX = 0; hipY = SHIN + 0.08 - HIP_Y; twist *= 0.3; rollZ *= 0.3; lean = 0.12;
+    [-1, 1].forEach((s) => { const leg = p.legs[s]; leg.t.rotation.set(-1.45, 0, s * 0.12); leg.k.rotation.x = 1.5; leg.f.rotation.x = -0.05; });
+    // 다리 꼬기: 오른 허벅지를 왼 무릎 위로 올린다
+    if (!p.armPose && (p.sitStyle === 2 || p.sitStyle === 3)) { const leg = p.legs[1]; leg.t.rotation.set(-1.62, 0, -0.28); leg.k.rotation.x = 1.2; leg.f.rotation.x = 0.2; }
+    hipX = 0; hipY = SHIN + 0.08 - HIP_Y; twist *= 0.15; rollZ *= 0.15; lean = p.armPose ? 0.12 : p.sitStyle === 2 ? -0.06 : 0.1;
   }
 
   p.hips.position.set(hipX * k, HIP_Y + hipY * (p.sit ? 1 : k) + Math.sin(p.walkPhase * 2) * 0.016 * p.walk + Math.sin(t * 1.2 + p.phase) * 0.003, 0);
   p.hips.rotation.y = twist * k;
   p.hips.rotation.z = rollZ * k * 0.5;
   p.torso.rotation.set(lean * k + 0.05 * p.walk + 0.02 * Math.sin(t * 0.8 + p.phase), -twist * k * 0.5, -rollZ * k);
-  p.head.rotation.set(nod * k * 0.9 - p.sip * 0.42 - p.up * 0.12, 0, -rollZ * k * 0.6);
+  p.head.rotation.set(nod * k * (p.sit ? 0.4 : 0.9) - p.sip * 0.42 - p.up * 0.12, p.sit && !p.armPose ? Math.sin(t * 0.23 + p.phase * 3) * 0.3 : 0, -rollZ * k * 0.6);
   p.y = air * 0.42;
   p.root.position.set(p.x, p.y, p.z);
   p.root.rotation.y = p.yaw;
