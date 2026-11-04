@@ -559,8 +559,8 @@ export function buildWorld(scene, fxState, theme) {
     }
     const scale = 1 + clock.kick * 0.05;
     led.save(); led.translate(W2 / 2, H / 2); led.scale(scale, scale);
-    led.font = '900 132px Pretendard, "Malgun Gothic", sans-serif'; led.textAlign = 'center'; led.textBaseline = 'middle';
-    led.shadowColor = css(h2, 60); led.shadowBlur = 30; led.fillStyle = '#ffffff'; led.fillText('현수', 0, 10);
+    led.font = '900 112px Pretendard, "Malgun Gothic", sans-serif'; led.textAlign = 'center'; led.textBaseline = 'middle';
+    led.shadowColor = css(h2, 60); led.shadowBlur = 30; led.fillStyle = '#ffffff'; led.fillText('DJ. 현수', 0, 10);
     led.font = '800 24px Outfit, sans-serif'; led.shadowBlur = 12; led.fillText('CLUB PULSE', 0, -82);
     led.restore(); led.shadowBlur = 0;
     ledT.needsUpdate = true;
