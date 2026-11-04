@@ -1,6 +1,6 @@
 import * as THREE from './vendor/three.min.js';
 import { Edm, TRACKS } from './edm.js?v=6';
-import { makePerson, updatePerson, goTo, say, jump, setWardrobe } from './people.js?v=7';
+import { makePerson, updatePerson, goTo, say, jump, setWardrobe } from './people.js?v=8';
 import { buildWorld, ROOM, FLOOR, TABLES, BAR_SPOTS } from './world.js?v=10';
 import { VENUES } from './venues.js?v=3';
 import { listTracks, addTrack, putTrack, removeTrack, isAudioFile, titleOf, analyze, isLrcFile, readText, lyricLines, id3Lyrics } from './mylist.js?v=2';
@@ -10,6 +10,12 @@ const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const damp = (cur, to, rate, dt) => cur + (to - cur) * (1 - Math.exp(-rate * dt));
 const rand = (a, b) => a + Math.random() * (b - a);
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
+/* 셔플은 동작이 여러 가지다 */
+const SHUFFLES = [{ s: 6, name: '러닝맨' }, { s: 7, name: '찰스턴' }, { s: 8, name: 'T스텝' }, { s: 9, name: '크리스크로스' }, { s: 10, name: '사이드 킥' }];
+let shuffleIdx = 0;
+const isShuffle = () => grooving && GROOVES[grooveLevel].style === 6;
+const isShuffleStyle = (s) => s >= 6 && s <= 10;
+const pickStyle = (list) => { const s = pick(list); return s === 6 ? pick(SHUFFLES).s : s; };
 const now = () => performance.now() / 1000;
 const later = (sec, f) => setTimeout(f, sec * 1000);
 
@@ -218,7 +224,7 @@ function freeFloorSpot() {
 const yawToStage = (x, z) => Math.atan2(-x * 0.32, -17 - z - 2);
 function setRole(p, role) {
   p.role = role; p.nextAct = now() + rand(2, 14);
-  if (role === 'floor') { p.danceTo = 1; p.danceStyle = pick(venue.styles); }
+  if (role === 'floor') { p.danceTo = 1; p.danceStyle = pickStyle(venue.styles); }
 }
 function dancerAt(p, x, z) { place(p, x, z, yawToStage(x, z)); setRole(p, 'floor'); p.danceTo = 1; p.dance = 1; }
 
@@ -704,19 +710,19 @@ function toggleGroove() {
   if (grooving) applyGroove(); else player.danceTo = 0;
   renderUi();
 }
-function applyGroove() { const g = GROOVES[grooveLevel]; player.danceStyle = g.style; player.groove = g.g; }
-function shuffleDance() {
-  const on = grooving && GROOVES[grooveLevel].style === 6;
-  if (on) { grooveLevel = 1; applyGroove(); toast('리듬 타기로 돌아갑니다'); }
-  else {
-    grooving = true; grooveLevel = GROOVES.findIndex((g) => g.style === 6); applyGroove();
-    toast('셔플댄스! 러닝맨과 T스텝', 2);
-    // 근처 사람 몇이 따라 춘다
-    const near = npcs.filter((n) => n.role === 'floor' && !n.target && Math.hypot(n.x - player.x, n.z - player.z) < 4.5).slice(0, 3);
-    near.forEach((n, i) => later(1 + i * 0.8, () => { if (n.role === 'floor') { n.danceStyle = 6; n.groove = 1.1; if (i === 0) say(n, pick(['오, 셔플!', '나도!', '같이 가요!']), 1.6); } }));
-  }
+function applyGroove() { const g = GROOVES[grooveLevel]; player.danceStyle = g.style === 6 ? SHUFFLES[shuffleIdx].s : g.style; player.groove = g.g; }
+function shuffleDance(idx = shuffleIdx) {
+  const was = isShuffle();
+  shuffleIdx = idx; grooving = true; grooveLevel = GROOVES.findIndex((g) => g.style === 6); applyGroove();
+  const sh = SHUFFLES[shuffleIdx];
+  toast(`셔플: ${sh.name}`, 1.6);
+  // 근처 사람 몇이 따라 춘다 (이미 셔플 중이던 사람은 바뀐 동작으로)
+  const near = npcs.filter((n) => n.role === 'floor' && !n.target && Math.hypot(n.x - player.x, n.z - player.z) < 4.5 && (!was || isShuffleStyle(n.danceStyle))).slice(0, 3);
+  near.forEach((n, i) => later((was ? 0.4 : 1) + i * 0.6, () => { if (n.role === 'floor') { n.danceStyle = sh.s; n.groove = 1.1; if (i === 0) say(n, was ? pick([`${sh.name}!`, '이것도 좋다!', '따라 해요!']) : pick(['오, 셔플!', '나도!', '같이 가요!']), 1.6); } }));
   renderUi();
 }
+function nextShuffle() { shuffleDance((shuffleIdx + 1) % SHUFFLES.length); }
+function stopShuffle() { grooveLevel = 1; applyGroove(); toast('리듬 타기로 돌아갑니다'); renderUi(); }
 function nextGrooveLevel() {
   grooveLevel = (grooveLevel + 1) % GROOVES.length; applyGroove();
   if (!grooving) grooving = true;
@@ -752,7 +758,7 @@ function mingle() {
     n.danceTo = 0; n.mingle = true;
     goTo(n, x, z, () => {
       n.yawTo = Math.atan2(player.x - n.x, player.z - n.z);
-      n.danceTo = 1; n.danceStyle = pick(venue.mingleStyles); n.groove = 1.1;
+      n.danceTo = 1; n.danceStyle = pickStyle(venue.mingleStyles); n.groove = 1.1;
     });
     later(0.3 + i * 1.1, () => { if (n.mingle) say(n, HELLOS[(i + Math.floor(base * 10)) % HELLOS.length], 2.3); });
   });
@@ -826,7 +832,11 @@ function renderUi() {
   if (myDrink.sips > 0 || step >= 4) {
     list.push({ label: grooving ? '건들거리기 멈추기' : '건들거리기', primary: step === 4 && !grooving, on: grooving, fn: toggleGroove });
     if (grooving) list.push({ label: `흥: ${GROOVES[grooveLevel].name}`, fn: nextGrooveLevel });
-    list.push({ label: '셔플댄스', on: grooving && GROOVES[grooveLevel].style === 6, fn: shuffleDance });
+    if (!isShuffle()) list.push({ label: '셔플댄스', fn: () => shuffleDance() });
+    else {
+      list.push({ label: `셔플: ${SHUFFLES[shuffleIdx].name} ▸`, on: true, fn: nextShuffle });
+      list.push({ label: '셔플 그만', fn: stopShuffle });
+    }
   }
   if (step >= 4 && !onFloor() && !player.target) {
     list.push({ label: '메인 스테이지로 가기', primary: grooveBeats >= 8, fn: goStage });
@@ -1106,7 +1116,7 @@ function npcTick(n, t, clock) {
   if (t < n.nextAct || n.target) return;
   n.nextAct = t + rand(8, 22);
   if (n.role === 'floor') {
-    if (Math.random() < 0.3) n.danceStyle = pick(venue.styles);
+    if (Math.random() < 0.3) n.danceStyle = pickStyle(venue.styles);
     const d = Math.hypot(n.x - player.x, n.z - player.z);
     if (d > 2 && d < 7 && Math.random() < 0.08) say(n, pick(venue.cheers), 1.6);
     if (!n.mingle && Math.random() < 0.14) {

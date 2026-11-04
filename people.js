@@ -246,6 +246,19 @@ export function updatePerson(p, dt, t, clock, collide) {
       stepL = Math.max(0, run) * 0.26; stepR = Math.max(0, -run) * 0.26;
       hipY = -0.05 - (1 - bob) * 0.035; hipX = half * 0.11; lean = 0.14; twist = -run * 0.12; nod = (1 - bob) * 0.12; rollZ = half * 0.04;
       armL = [-0.75 + run * 0.55, 0.22, 0, -1.45]; armR = [-0.75 - run * 0.55, 0.22, 0, -1.45];
+    } else if (S === 7) {  // 찰스턴: 한 발로 앞뒤로 차며 허리를 비튼다
+      twist = sway * 0.36; hipY = -0.03 - dip * 0.05; nod = dip * 0.1; lean = 0.05;
+      armL = [-0.55 + sway * 0.75, 0.32, 0, -0.55]; armR = [-0.55 - sway * 0.75, 0.32, 0, -0.55];
+    } else if (S === 8) {  // T스텝: 옆으로 미끄러지며 디딘 발끝을 안팎으로 튼다
+      hipX = Math.sin((Math.PI * b) / 4) * 0.24; hipY = -0.07 - dip * 0.03; rollZ = -Math.cos((Math.PI * b) / 4) * 0.07; nod = dip * 0.1; lean = 0.08;
+      armL = [-0.35, 0.95 + pulse * 0.25, 0, -0.85]; armR = [-0.35, 0.95 + pulse * 0.25, 0, -0.85];
+    } else if (S === 9) {  // 크리스크로스: 박마다 다리를 엇갈렸다 벌린다, 팔도 함께 교차
+      const cr = 0.5 - 0.5 * Math.cos(Math.PI * b);
+      hipY = -0.05 - pulse * 0.04; nod = dip * 0.12; lean = 0.06;
+      armL = blend([-0.55, 0.75, 0, -0.55], [-1.05, -0.32, 0, -0.75], cr); armR = blend([-0.55, 0.75, 0, -0.55], [-1.12, -0.3, 0, -0.7], cr);
+    } else if (S === 10) { // 사이드 킥: 박마다 좌우로 다리를 차올린다
+      hipY = -0.05 - dip * 0.04; rollZ = sway * 0.13; nod = dip * 0.12; lean = 0.08;
+      armL = [-1.35 - pulse * 0.35, 0.3, 0, -1.55]; armR = [-1.35 - pulse * 0.35, 0.3, 0, -1.55];
     } else if (S === 5) {  // 고고: 허리를 비틀고 팔꿈치를 접어 흔든다
       twist = sway * 0.5; hipY = -0.05 - dip * 0.05; hipX = half * 0.06; nod = dip * 0.1;
       armL = [-0.55 + sway * 0.4, 0.34, 0, -1.55]; armR = [-0.55 - sway * 0.4, 0.34, 0, -1.55];
@@ -310,6 +323,26 @@ export function updatePerson(p, dt, t, clock, collide) {
     const tw = Math.sin(Math.PI * b * 2) * 0.42 * Math.min(1, k);
     p.legs[-1].t.rotation.y = -tw * (stepR > 0.02 ? 0.2 : 1); p.legs[1].t.rotation.y = tw * (stepL > 0.02 ? 0.2 : 1);
   } else { p.legs[-1].t.rotation.y = 0; p.legs[1].t.rotation.y = 0; }
+  const K = Math.min(1, k);
+  if (K > 0.005 && !p.sit && S >= 7 && S <= 10) {
+    const L = p.legs;
+    if (S === 7) {        // 4박마다 차는 발을 바꾼다: 앞으로 차고, 디디고, 뒤로 차고
+      const kick = Math.sin((Math.PI * b) / 2), s = Math.floor(b / 4) % 2 ? -1 : 1, leg = L[s];
+      leg.t.rotation.x += (-0.8 * Math.max(0, kick) + 0.45 * Math.max(0, -kick)) * K;
+      leg.k.rotation.x += (0.1 + 0.95 * Math.max(0, -kick)) * K;
+      leg.f.rotation.x += 0.4 * Math.max(0, kick) * K;
+    } else if (S === 8) { // 가는 쪽 다리는 들어 옆으로, 남은 다리는 발끝을 튼다
+      const lead = Math.cos((Math.PI * b) / 4) > 0 ? 1 : -1, sup = L[-lead], free = L[lead];
+      sup.t.rotation.y = Math.sin(Math.PI * b * 2) * 0.5 * K;
+      free.t.rotation.z = lead * (0.22 + 0.2 * pulse) * K; free.k.rotation.x += 0.5 * pulse * K; free.f.rotation.z = -lead * 0.2 * K;
+    } else if (S === 9) {
+      const cr = 0.5 - 0.5 * Math.cos(Math.PI * b);
+      [-1, 1].forEach((s) => { L[s].t.rotation.z = s * (0.17 - 0.33 * cr) * K; L[s].t.rotation.x += s * 0.13 * cr * K; L[s].f.rotation.z = -s * (0.17 - 0.33 * cr) * K * 0.8; });
+    } else {              // 사이드 킥
+      const s = sway > 0 ? 1 : -1, amt = Math.abs(sway) * K, leg = L[s];
+      leg.t.rotation.z = s * 0.8 * amt; leg.k.rotation.x += 0.9 * amt * (1 - amt) * 2; leg.f.rotation.z = -s * 0.3 * amt;
+    }
+  }
   // 앉기: 허벅지는 앞으로, 정강이는 아래로, 무릎은 살짝 벌린다
   if (p.sit) {
     [-1, 1].forEach((s) => { const leg = p.legs[s]; leg.t.rotation.set(-1.45, 0, s * 0.3); leg.k.rotation.x = 1.5; leg.f.rotation.x = -0.05; });
