@@ -6,7 +6,7 @@ export const VENUES = {
     band: false, jumps: true, shake: true,
     fog: 0x0a0716, hemi: [0x8fa7ff, 0x23153a, 0.82], wall: 0x0d0c16, floor: 0x17151f,
     palette: { drop: [0.86, 0.5, 0.74], groove: [0.76, 0.56, 0.6], intro: [0.65, 0.72, 0.6], break: [0.58, 0.68, 0.76], build: [0.04, 0.92, 0.84] },
-    styles: [0, 1, 2, 3, 4], mingleStyles: [0, 1, 3, 4], stageStyle: 1,
+    styles: [0, 1, 2, 3, 4, 6], mingleStyles: [0, 1, 3, 4, 6], stageStyle: 1,
     ticket: '신분증', queueHint: '문 너머로 베이스가 웅웅거립니다. 시점은 화면을 끌어 돌려 보세요',
     enterToast: '베이스가 온몸으로 들어옵니다', dropToast: '드롭!', chorusHint: '드롭이 오면 다 같이 뜁니다',
     lineTalk: ['오늘 사람 많네', '언제 들어가지', '이 베이스 들려요?', '오늘 라인업 좋아요'],

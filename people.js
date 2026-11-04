@@ -241,6 +241,11 @@ export function updatePerson(p, dt, t, clock, collide) {
       hipX = half * 0.15; hipY = -dip * 0.06; rollZ = -half * 0.1; twist = half * 0.26; nod = dip * 0.12;
       stepL = Math.max(0, half) * 0.14; stepR = Math.max(0, -half) * 0.14;
       const clap = -1.42 - dip * 0.14; armL = [clap, -0.12 + pulse * 0.2, -0.45, -0.95]; armR = [clap, -0.12 + pulse * 0.2, -0.45, -0.95];
+    } else if (S === 6) {  // 셔플: 러닝맨(무릎을 번갈아 올리며 디딘 발은 뒤로 미끄러짐) + T스텝(발끝을 안팎으로 튼다)
+      const run = sway, bob = Math.abs(Math.sin(Math.PI * b * 2));
+      stepL = Math.max(0, run) * 0.26; stepR = Math.max(0, -run) * 0.26;
+      hipY = -0.05 - (1 - bob) * 0.035; hipX = half * 0.11; lean = 0.14; twist = -run * 0.12; nod = (1 - bob) * 0.12; rollZ = half * 0.04;
+      armL = [-0.75 + run * 0.55, 0.22, 0, -1.45]; armR = [-0.75 - run * 0.55, 0.22, 0, -1.45];
     } else if (S === 5) {  // 고고: 허리를 비틀고 팔꿈치를 접어 흔든다
       twist = sway * 0.5; hipY = -0.05 - dip * 0.05; hipX = half * 0.06; nod = dip * 0.1;
       armL = [-0.55 + sway * 0.4, 0.34, 0, -1.55]; armR = [-0.55 - sway * 0.4, 0.34, 0, -1.55];
@@ -301,6 +306,10 @@ export function updatePerson(p, dt, t, clock, collide) {
     leg.f.rotation.x = -(tx - sw - step * 1.7 - tuck + kx + lift + step * 3 + tuck * 1.4) * 0.9;
   };
   legPose(-1, stepR * k); legPose(1, stepL * k);
+  if (S === 6 && !p.sit) {   // 셔플: 디딘 다리는 발끝을 안팎으로 튼다 (T스텝), 들린 다리는 앞으로 찬다
+    const tw = Math.sin(Math.PI * b * 2) * 0.42 * Math.min(1, k);
+    p.legs[-1].t.rotation.y = -tw * (stepR > 0.02 ? 0.2 : 1); p.legs[1].t.rotation.y = tw * (stepL > 0.02 ? 0.2 : 1);
+  } else { p.legs[-1].t.rotation.y = 0; p.legs[1].t.rotation.y = 0; }
   // 앉기: 허벅지는 앞으로, 정강이는 아래로, 무릎은 살짝 벌린다
   if (p.sit) {
     [-1, 1].forEach((s) => { const leg = p.legs[s]; leg.t.rotation.set(-1.45, 0, s * 0.3); leg.k.rotation.x = 1.5; leg.f.rotation.x = -0.05; });

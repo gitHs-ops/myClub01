@@ -80,3 +80,79 @@ export function analyze(buf) {
   merged.forEach((r) => { for (let i = 0; i < r.bars; i++) bars.push({ name: r.name, barIn: i, bars: r.bars, energy: ENERGY[r.name] }); });
   return { bpm, offset, duration, bars };
 }
+
+/* 가사: LRC([mm:ss.xx]) 또는 시간 없는 글. 저장은 원문 그대로 한다 */
+export const isLrcFile = (f) => /\.lrc$/i.test(f.name);
+export function decodeText(bytes) {
+  try { return new TextDecoder('utf-8', { fatal: true }).decode(bytes).replace(/^\uFEFF/, ''); }
+  catch { try { return new TextDecoder('euc-kr').decode(bytes); } catch { return new TextDecoder('windows-1252').decode(bytes); } }
+}
+export const readText = async (f) => decodeText(new Uint8Array(await f.arrayBuffer()));
+export function parseLrc(text) {
+  let off = 0; const out = [];
+  for (const raw of String(text || '').split(/\r?\n/)) {
+    const o = raw.match(/^\s*\[offset:\s*([+-]?\d+)\s*\]/i); if (o) { off = +o[1] / 1000; continue; }
+    const stamps = [...raw.matchAll(/\[(\d{1,3}):(\d{1,2}(?:[.:]\d{1,3})?)\]/g)];
+    if (!stamps.length) continue;
+    const line = raw.replace(/\[[^\]]*\]/g, '').replace(/<\d+:\d+(?:\.\d+)?>/g, '').trim();
+    for (const s of stamps) out.push({ t: +s[1] * 60 + parseFloat(s[2].replace(':', '.')), text: line });
+  }
+  if (out.length < 2) return null;
+  out.forEach((l) => { l.t = Math.max(0, l.t + off); });
+  return out.sort((a, b) => a.t - b.t);
+}
+/* 시간 정보가 없으면 곡 길이에 맞춰 고르게 나눈다 (앞 6%는 전주로 비워 둔다) */
+export function lyricLines(text, dur) {
+  const lrc = parseLrc(text);
+  if (lrc) return { timed: true, lines: lrc };
+  const rows = String(text || '').split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+  if (!rows.length) return null;
+  const d = dur > 5 ? dur : 180;
+  return { timed: false, lines: rows.map((r, i) => ({ t: d * (0.06 + (0.9 * i) / rows.length), text: r })) };
+}
+/* mp3 안의 가사(ID3 USLT 또는 SYLT) */
+export async function id3Lyrics(blob) {
+  try {
+    const h = new Uint8Array(await blob.slice(0, 10).arrayBuffer());
+    if (h[0] !== 0x49 || h[1] !== 0x44 || h[2] !== 0x33 || h[3] < 3) return null;
+    const ver = h[3], size = ((h[6] & 127) << 21) | ((h[7] & 127) << 14) | ((h[8] & 127) << 7) | (h[9] & 127);
+    if (size > 16e6) return null;
+    const d = new Uint8Array(await blob.slice(10, 10 + size).arrayBuffer());
+    const be = (i) => ((d[i] << 24) | (d[i + 1] << 16) | (d[i + 2] << 8) | d[i + 3]) >>> 0;
+    const ss = (i) => ((d[i] & 127) << 21) | ((d[i + 1] & 127) << 14) | ((d[i + 2] & 127) << 7) | (d[i + 3] & 127);
+    let i = 0;
+    if (h[5] & 0x40) i = ver === 4 ? ss(0) : be(0) + 4;
+    const dec = (enc, b) => {
+      if (enc === 3) return new TextDecoder('utf-8').decode(b);
+      if (enc === 2) return new TextDecoder('utf-16be').decode(b);
+      if (enc === 1) return b[0] === 0xfe && b[1] === 0xff ? new TextDecoder('utf-16be').decode(b.subarray(2)) : new TextDecoder('utf-16le').decode(b[0] === 0xff && b[1] === 0xfe ? b.subarray(2) : b);
+      return decodeText(b);
+    };
+    const term = (b, at, enc) => {   // 문자열 끝(0) 위치
+      if (enc === 1 || enc === 2) { for (let j = at; j + 1 < b.length; j += 2) if (!b[j] && !b[j + 1]) return [j, j + 2]; return [b.length, b.length]; }
+      for (let j = at; j < b.length; j++) if (!b[j]) return [j, j + 1];
+      return [b.length, b.length];
+    };
+    let uslt = null, sylt = null;
+    while (i + 10 <= d.length) {
+      const id = String.fromCharCode(d[i], d[i + 1], d[i + 2], d[i + 3]);
+      if (!/^[A-Z0-9]{4}$/.test(id)) break;
+      const n = ver === 4 ? ss(i + 4) : be(i + 4), body = d.subarray(i + 10, i + 10 + n); i += 10 + n;
+      if (id === 'USLT' && !uslt && body.length > 5) {
+        const enc = body[0], [, s] = term(body, 4, enc);
+        uslt = dec(enc, body.subarray(s)).replace(/\u0000/g, '').trim();
+      } else if (id === 'SYLT' && !sylt && body.length > 7 && body[4] === 2) {
+        const enc = body[0]; let [, p] = term(body, 6, enc); const rows = [];
+        while (p < body.length) {
+          const [e, nx] = term(body, p, enc); if (nx + 4 > body.length) break;
+          const ms = ((body[nx] << 24) | (body[nx + 1] << 16) | (body[nx + 2] << 8) | body[nx + 3]) >>> 0;
+          const txt = dec(enc, body.subarray(p, e)).replace(/^[\r\n]+/, '').trim();
+          if (txt) rows.push(`[${String(Math.floor(ms / 60000)).padStart(2, '0')}:${((ms % 60000) / 1000).toFixed(2).padStart(5, '0')}]${txt}`);
+          p = nx + 4;
+        }
+        if (rows.length > 1) sylt = rows.join('\n');
+      }
+    }
+    return sylt || uslt || null;
+  } catch { return null; }
+}

@@ -1,9 +1,9 @@
 import * as THREE from './vendor/three.min.js';
 import { Edm, TRACKS } from './edm.js?v=6';
-import { makePerson, updatePerson, goTo, say, jump, setWardrobe } from './people.js?v=6';
+import { makePerson, updatePerson, goTo, say, jump, setWardrobe } from './people.js?v=7';
 import { buildWorld, ROOM, FLOOR, TABLES, BAR_SPOTS } from './world.js?v=10';
-import { VENUES } from './venues.js?v=2';
-import { listTracks, addTrack, putTrack, removeTrack, isAudioFile, titleOf, analyze } from './mylist.js?v=1';
+import { VENUES } from './venues.js?v=3';
+import { listTracks, addTrack, putTrack, removeTrack, isAudioFile, titleOf, analyze, isLrcFile, readText, lyricLines, id3Lyrics } from './mylist.js?v=2';
 
 const $ = (id) => document.getElementById(id);
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
@@ -698,13 +698,25 @@ function sip() {
   renderUi();
 }
 /* 4. 건들거리기 */
-const GROOVES = [{ name: '살짝', style: 0, g: 0.5 }, { name: '리듬 타기', style: 0, g: 1.0 }, { name: '신나게', style: 1, g: 1.2 }];
+const GROOVES = [{ name: '살짝', style: 0, g: 0.5 }, { name: '리듬 타기', style: 0, g: 1.0 }, { name: '신나게', style: 1, g: 1.2 }, { name: '셔플댄스', style: 6, g: 1.2 }];
 function toggleGroove() {
   grooving = !grooving;
   if (grooving) applyGroove(); else player.danceTo = 0;
   renderUi();
 }
 function applyGroove() { const g = GROOVES[grooveLevel]; player.danceStyle = g.style; player.groove = g.g; }
+function shuffleDance() {
+  const on = grooving && GROOVES[grooveLevel].style === 6;
+  if (on) { grooveLevel = 1; applyGroove(); toast('리듬 타기로 돌아갑니다'); }
+  else {
+    grooving = true; grooveLevel = GROOVES.findIndex((g) => g.style === 6); applyGroove();
+    toast('셔플댄스! 러닝맨과 T스텝', 2);
+    // 근처 사람 몇이 따라 춘다
+    const near = npcs.filter((n) => n.role === 'floor' && !n.target && Math.hypot(n.x - player.x, n.z - player.z) < 4.5).slice(0, 3);
+    near.forEach((n, i) => later(1 + i * 0.8, () => { if (n.role === 'floor') { n.danceStyle = 6; n.groove = 1.1; if (i === 0) say(n, pick(['오, 셔플!', '나도!', '같이 가요!']), 1.6); } }));
+  }
+  renderUi();
+}
 function nextGrooveLevel() {
   grooveLevel = (grooveLevel + 1) % GROOVES.length; applyGroove();
   if (!grooving) grooving = true;
@@ -801,6 +813,7 @@ function renderUi() {
   if (myDrink.sips > 0 || step >= 4) {
     list.push({ label: grooving ? '건들거리기 멈추기' : '건들거리기', primary: step === 4 && !grooving, on: grooving, fn: toggleGroove });
     if (grooving) list.push({ label: `흥: ${GROOVES[grooveLevel].name}`, fn: nextGrooveLevel });
+    list.push({ label: '셔플댄스', on: grooving && GROOVES[grooveLevel].style === 6, fn: shuffleDance });
   }
   if (step >= 4 && !onFloor() && !player.target) {
     list.push({ label: '메인 스테이지로 가기', primary: grooveBeats >= 8, fn: goStage });
@@ -860,6 +873,51 @@ $('lowFx').onchange = (e) => { settings.lowFx = e.target.checked; fxState.full =
 /* ───── myList: 내 음원 (무대마다 따로) ───── */
 let saved = [], temp = [], nowFile = null, nowUrl = null, armedDelete = null, tempSeq = 0;
 const myItems = () => [...saved, ...temp];
+/* 가사(자막) */
+let lyricsOn = localStorage.getItem('clubpulse-lyrics') !== 'off', lyr = null, lyrIdx = -2, lyrItem = null;
+function setLyrics(it) {
+  lyrItem = it; lyrIdx = -2;
+  lyr = it?.lyrics ? lyricLines(it.lyrics, edm.fileEl?.duration || it.analysis?.duration) : null;
+  $('btnLyrics').hidden = !lyr; $('btnLyrics').classList.toggle('on', lyricsOn);
+  $('btnLyrics').setAttribute('aria-pressed', String(lyricsOn));
+  $('lyrics').hidden = !(lyr && lyricsOn);
+  $('lyNow').textContent = ''; $('lyNext').textContent = '';
+}
+function updateLyrics() {
+  if (!lyr || !lyricsOn || !nowFile || !edm.fileEl) return;
+  if (!lyr.timed && lyrItem && edm.fileEl.duration > 5 && Math.abs(lyr.lines[lyr.lines.length - 1].t - edm.fileEl.duration * (0.06 + 0.9 * (lyr.lines.length - 1) / lyr.lines.length)) > 1) setLyrics(lyrItem);
+  const ct = edm.fileEl.currentTime + 0.15, L = lyr.lines;
+  let i = -1; for (let j = 0; j < L.length && L[j].t <= ct; j++) i = j;
+  if (i === lyrIdx) return;
+  lyrIdx = i;
+  const now = i >= 0 ? L[i].text : '', next = L.slice(i + 1).find((l) => l.text)?.text || '';
+  $('lyNow').textContent = now || '♪'; $('lyNext').textContent = next;
+  $('lyNow').classList.remove('pop'); void $('lyNow').offsetWidth; $('lyNow').classList.add('pop');
+}
+async function findId3(it) {
+  if (it.lyrics || it.id3Checked || !/mpeg|mp3/i.test(it.type || '') && !/\.mp3$/i.test(it.name)) return;
+  it.id3Checked = true;
+  const text = await id3Lyrics(it.blob);
+  if (!text || it.lyrics) return;
+  it.lyrics = text; if (!it.temp) putTrack(it).catch(() => {});
+  if (nowFile === it) setLyrics(it);
+  toast('음원 파일 안에 든 가사를 찾았습니다', 2.2); renderMyList();
+}
+let lyEdit = null;
+function openLyrics(it) {
+  lyEdit = it;
+  $('lySong').textContent = it.title; $('lyText').value = it.lyrics || '';
+  $('myListModal').hidden = true; $('lyricsModal').hidden = false;
+  setTimeout(() => $('lyText').focus(), 50);
+}
+async function saveLyrics(text) {
+  const it = lyEdit; if (!it) return;
+  it.lyrics = text.trim() || null;
+  try { if (!it.temp) await putTrack(it); } catch { toast('저장하지 못했습니다'); return; }
+  if (nowFile === it) setLyrics(it);
+  toast(it.lyrics ? (lyricLines(it.lyrics, 0)?.timed ? '시간 맞춘 가사를 저장했습니다' : '가사를 저장했습니다 (곡 길이에 맞춰 나눕니다)') : '가사를 지웠습니다', 2.4);
+  $('lyricsModal').hidden = true; renderMyList(); $('myListModal').hidden = false;
+}
 const fmtSize = (b) => (b >= 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
 const fmtTime = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 async function refreshSaved() {
@@ -885,6 +943,9 @@ function renderMyList() {
     play.setAttribute('aria-label', `${it.title} ${nowFile === it && !paused ? '일시정지' : '재생'}`);
     play.onclick = () => { if (nowFile === it) { edm.togglePause(); renderMyList(); } else playItem(it); };
     row.append(play);
+    const ly = document.createElement('button'); ly.className = `mlSmall${it.lyrics ? ' has' : ''}`; ly.textContent = it.lyrics ? '가사 ✓' : '가사';
+    ly.setAttribute('aria-label', `${it.title} 가사 ${it.lyrics ? '고치기' : '넣기'}`); ly.onclick = () => openLyrics(it);
+    row.append(ly);
     if (it.temp) {
       const keep = document.createElement('button'); keep.className = 'mlSmall'; keep.textContent = '저장';
       keep.onclick = () => keepTemp(it);
@@ -899,7 +960,7 @@ function renderMyList() {
   if (navigator.storage?.estimate) navigator.storage.estimate().then((s) => { $('myListUsage').textContent = `사용 중 ${fmtSize(s.usage || 0)}`; }).catch(() => {});
 }
 function backToBand() {
-  nowFile = null; edm.stopFile();
+  nowFile = null; edm.stopFile(); setLyrics(null);
   if (nowUrl) { URL.revokeObjectURL(nowUrl); nowUrl = null; }
   $('nowName').textContent = edm.track.name;
   renderMyList();
@@ -911,6 +972,7 @@ function playItem(it) {
     if (err?.name === 'NotAllowedError') toast('재생 버튼을 한 번 더 눌러 주세요');
   });
   $('nowName').textContent = it.title; toast(it.title, 2.2);
+  setLyrics(it); findId3(it);
   renderMyList();
   if (!it.analysis && it.size < 80 * 1048576) analyzeItem(it);
 }
@@ -940,25 +1002,46 @@ async function keepTemp(it) {
   } catch (err) { toast(err?.name === 'QuotaExceededError' ? '브라우저 저장 공간이 부족합니다' : '저장하지 못했습니다'); }
 }
 async function addFiles(files, keep) {
-  const good = [...files].filter(isAudioFile), bad = files.length - good.length;
+  const lrcs = files.filter(isLrcFile), good = files.filter(isAudioFile), bad = files.length - good.length - lrcs.length;
   if (bad) toast(`음원이 아닌 파일 ${bad}개는 뺐습니다`);
+  const lrcOf = {};
+  for (const f of lrcs) { try { lrcOf[titleOf(f.name)] = await readText(f); } catch { /* 읽지 못한 가사는 건너뛴다 */ } }
+  const lyricsFor = (f) => lrcOf[titleOf(f.name)] || null;
+  // 가사 파일만 올렸으면 이름이 같은 곡에 붙인다
+  const orphan = Object.keys(lrcOf).filter((k) => !good.some((f) => titleOf(f.name) === k));
+  if (orphan.length) {
+    let n = 0;
+    for (const k of orphan) {
+      const it = myItems().find((x) => x.title === k); if (!it) continue;
+      it.lyrics = lrcOf[k]; n++;
+      if (!it.temp) await putTrack(it).catch(() => {});
+      if (nowFile === it) setLyrics(it);
+    }
+    toast(n ? `가사 ${n}개를 같은 이름의 곡에 붙였습니다` : '이름이 같은 곡이 없어 가사를 붙이지 못했습니다', 2.6);
+    renderMyList();
+  }
   if (!good.length) return;
   let first = null;
   if (keep) {
     navigator.storage?.persist?.();
     for (const f of good) {
-      if (saved.some((x) => x.name === f.name && x.size === f.size)) { toast(`이미 있는 곡입니다: ${titleOf(f.name)}`); continue; }
+      const dup = saved.find((x) => x.name === f.name && x.size === f.size);
+      if (dup) {
+        if (lyricsFor(f)) { dup.lyrics = lyricsFor(f); await putTrack(dup).catch(() => {}); if (nowFile === dup) setLyrics(dup); toast(`가사를 붙였습니다: ${dup.title}`); }
+        else toast(`이미 있는 곡입니다: ${titleOf(f.name)}`);
+        continue;
+      }
       try {
-        const id = await addTrack({ venue: venue.id, title: titleOf(f.name), name: f.name, size: f.size, type: f.type, blob: f, analysis: null, addedAt: Date.now() });
+        const id = await addTrack({ venue: venue.id, title: titleOf(f.name), name: f.name, size: f.size, type: f.type, blob: f, analysis: null, lyrics: lyricsFor(f), addedAt: Date.now() });
         first ??= id;
-      } catch (err) { toast(err?.name === 'QuotaExceededError' ? '브라우저 저장 공간이 부족합니다' : '이 브라우저에서는 저장할 수 없어 이번만 재생합니다'); temp.push({ temp: true, id: `t${++tempSeq}`, title: titleOf(f.name), name: f.name, size: f.size, type: f.type, blob: f, analysis: null }); }
+      } catch (err) { toast(err?.name === 'QuotaExceededError' ? '브라우저 저장 공간이 부족합니다' : '이 브라우저에서는 저장할 수 없어 이번만 재생합니다'); temp.push({ temp: true, id: `t${++tempSeq}`, title: titleOf(f.name), name: f.name, size: f.size, type: f.type, blob: f, analysis: null, lyrics: lyricsFor(f) }); }
     }
     await refreshSaved();
     renderMyList();
     const it = saved.find((x) => x.id === first) || temp[temp.length - 1];
     if (it) { playItem(it); toast(`${good.length}곡을 myList에 저장했습니다`); }
   } else {
-    const added = good.map((f) => ({ temp: true, id: `t${++tempSeq}`, title: titleOf(f.name), name: f.name, size: f.size, type: f.type, blob: f, analysis: null }));
+    const added = good.map((f) => ({ temp: true, id: `t${++tempSeq}`, title: titleOf(f.name), name: f.name, size: f.size, type: f.type, blob: f, analysis: null, lyrics: lyricsFor(f) }));
     temp.push(...added); playItem(added[0]);
   }
 }
@@ -970,6 +1053,15 @@ async function addFiles(files, keep) {
   $('mlTemp').onclick = () => $('mlTempInput').click();
   $('mlSaveInput').onchange = (e) => { const f = [...e.target.files]; e.target.value = ''; addFiles(f, true); };
   $('mlTempInput').onchange = (e) => { const f = [...e.target.files]; e.target.value = ''; addFiles(f, false); };
+  $('btnLyrics').onclick = () => {
+    lyricsOn = !lyricsOn; localStorage.setItem('clubpulse-lyrics', lyricsOn ? 'on' : 'off');
+    setLyrics(nowFile); toast(lyricsOn ? '가사를 켭니다' : '가사를 끕니다', 1.4);
+  };
+  $('lySave').onclick = () => saveLyrics($('lyText').value);
+  $('lyClear').onclick = () => { $('lyText').value = ''; $('lyText').focus(); };
+  $('lyFile').onclick = () => $('lyInput').click();
+  $('lyInput').onchange = async (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) $('lyText').value = await readText(f); };
+  $('lyBack').onclick = () => { $('lyricsModal').hidden = true; renderMyList(); $('myListModal').hidden = false; };
   $('myListStop').onclick = () => { backToBand(); toast(venue.band ? '밴드 연주로 돌아갑니다' : 'DJ 음악으로 돌아갑니다'); };
   edm.onFileEnd = () => {
     const list = myItems(), i = list.indexOf(nowFile);
@@ -1088,6 +1180,7 @@ function frame(nowMs) {
     }
   }
   for (const p of everyone) if (p.cup) holdCup(p, p.cup);
+  updateLyrics();
   if (drummerRef) {
     const lift = drumLift(clock.beat + drummerRef.beatOff);
     for (const st of drummerSticks) {
