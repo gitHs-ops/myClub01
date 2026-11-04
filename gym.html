@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#eef2ff">
+<title>PT GYM — 따라 하는 3D 헬스장</title>
+<meta name="description" content="트레이너 시범을 보며 따라 하는 3D 헬스장. 목표 설정, 매일 기록, 통계.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%230d9488'/%3E%3Cpath d='M7 16h18M9 11v10M23 11v10M5 13v6M27 13v6' stroke='%23fff' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=8">
+<link rel="stylesheet" href="gym.css?v=1">
+</head>
+<body class="gymPage">
+<canvas id="scene" aria-label="3D 헬스장 화면"></canvas>
+
+<header id="gHud">
+  <div class="glass gBrand"><b>PT</b><span>GYM</span></div>
+  <nav class="glass gTabs" aria-label="메뉴">
+    <button data-tab="train" class="on">운동</button>
+    <button data-tab="log">기록</button>
+    <button data-tab="stats">통계</button>
+    <button data-tab="goal">목표</button>
+  </nav>
+  <div class="gRight">
+    <button class="glass gChip" id="btnView" title="시점 바꾸기">시점: 자동</button>
+    <button class="glass gChip" id="btnVoice" aria-pressed="true">음성 켬</button>
+    <a class="glass gChip" href="index.html">나가기</a>
+  </div>
+</header>
+
+<aside id="panel" class="glass" aria-live="polite">
+  <button class="modalX" id="panelX" aria-label="패널 닫기"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  <section data-pane="train">
+    <h2>오늘 운동</h2>
+    <p class="muted" id="todayHint"></p>
+    <h3>프로그램 <small>트레이너를 따라 처음부터 끝까지</small></h3>
+    <div id="progList"></div>
+    <h3>운동 도감 <small>눌러서 자세 보기·하나만 하기</small></h3>
+    <div class="exFilter" id="exFilter"></div>
+    <div id="exList" class="exGrid"></div>
+  </section>
+  <section data-pane="log" hidden>
+    <h2>매일 기록</h2>
+    <div class="dateBar"><button class="mini" id="dPrev" aria-label="전날">‹</button><input type="date" id="dPick"><button class="mini" id="dNext" aria-label="다음 날">›</button><button class="mini" id="dToday">오늘</button></div>
+    <div class="formGrid">
+      <label>체중 <i>kg</i><input type="number" step="0.1" min="20" max="300" id="fWeight"></label>
+      <label>체지방률 <i>%</i><input type="number" step="0.1" min="2" max="70" id="fFat"></label>
+      <label>수면 <i>시간</i><input type="number" step="0.5" min="0" max="24" id="fSleep"></label>
+      <label>물 <i>잔</i><input type="number" step="1" min="0" max="30" id="fWater"></label>
+    </div>
+    <div class="condRow"><span>컨디션</span><div id="fCond" class="chips"></div></div>
+    <textarea id="fMemo" rows="2" placeholder="메모 (식사, 통증, 느낌 등)"></textarea>
+    <button class="btn primary wide" id="fSave">이 날 기록 저장</button>
+    <h3>이 날 한 운동</h3>
+    <div id="dayWork"></div>
+    <details class="addBox"><summary>직접 추가 (헬스장에서 한 운동)</summary>
+      <div class="formGrid">
+        <label class="span2">운동<select id="mEx"></select></label>
+        <label>세트<input type="number" id="mSets" min="1" max="20" value="3"></label>
+        <label>회수<input type="number" id="mReps" min="0" max="200" value="10"></label>
+        <label>무게 <i>kg</i><input type="number" id="mKg" min="0" max="500" step="0.5" value="0"></label>
+        <label>시간 <i>분</i><input type="number" id="mMin" min="0" max="300" value="0"></label>
+      </div>
+      <button class="btn wide" id="mAdd">추가</button>
+    </details>
+    <h3>이번 달 <small id="calTitle"></small></h3>
+    <div id="cal" class="cal"></div>
+  </section>
+  <section data-pane="stats" hidden>
+    <h2>통계</h2>
+    <div class="tiles" id="tiles"></div>
+    <h3>체중 변화 <small>최근 60일 · 점선은 목표 체중</small></h3>
+    <div class="chart" id="chWeight"></div>
+    <h3>주간 운동 시간 <small>최근 8주 · 점선은 목표</small></h3>
+    <div class="chart" id="chWeek"></div>
+    <h3>부위별 세트 <small>최근 30일</small></h3>
+    <div class="chart" id="chPart"></div>
+    <h3>최고 기록 <small>추정 1RM = 무게 × (1 + 회수 ÷ 30)</small></h3>
+    <div id="bestTbl"></div>
+  </section>
+  <section data-pane="goal" hidden>
+    <h2>목표 설정</h2>
+    <div class="formGrid">
+      <label>성별<select id="gSex"><option value="m">남성</option><option value="f">여성</option></select></label>
+      <label>나이<input type="number" id="gAge" min="10" max="100"></label>
+      <label>키 <i>cm</i><input type="number" id="gHeight" min="100" max="230" step="0.1"></label>
+      <label>현재 체중 <i>kg</i><input type="number" id="gWeight" min="20" max="300" step="0.1"></label>
+      <label>목표 체중 <i>kg</i><input type="number" id="gTarget" min="20" max="300" step="0.1"></label>
+      <label>목표<select id="gType"><option value="lose">체중 감량</option><option value="keep">유지·건강</option><option value="muscle">근육 늘리기</option><option value="fit">체력 향상</option></select></label>
+      <label>평소 활동<select id="gAct"><option value="1.2">거의 앉아서</option><option value="1.375">가벼움 (주 1~3일)</option><option value="1.55">보통 (주 3~5일)</option><option value="1.725">많음 (주 6~7일)</option></select></label>
+      <label>주 운동 일수<input type="number" id="gDays" min="1" max="7" value="3"></label>
+      <label class="span2">주 운동 시간 목표 <i>분</i><input type="number" id="gMin" min="30" max="900" step="10" value="150"></label>
+    </div>
+    <button class="btn primary wide" id="gSave">목표 저장</button>
+    <div id="goalOut"></div>
+    <div class="refBox">
+      <h3>근거로 삼은 권장 기준</h3>
+      <ul>
+        <li>성인 신체활동: 주 150~300분 중강도 유산소 또는 75~150분 고강도, 그리고 주 2일 이상 주요 근육 근력 운동 (WHO 2020, ACSM)</li>
+        <li>근력·근비대: 1세트 8~12회, 2~4세트, 세트 사이 1~2분 휴식. 초보자는 주 2~3회 전신 (ACSM 저항운동 권고)</li>
+        <li>점진적 과부하: 목표 회수를 2회 연속 넘기면 무게를 2~10% 올린다 (ACSM 2-for-2 규칙)</li>
+        <li>기초대사량: Mifflin-St Jeor 식. 하루 소비량 = 기초대사량 × 활동 계수</li>
+        <li>체중 감량: 하루 약 500kcal 부족 → 주 0.5kg 안팎</li>
+        <li>단백질: 운동하는 성인 체중 1kg당 1.2~2.0g (ISSN, ACSM)</li>
+        <li>BMI(한국): 18.5 미만 저체중, 23~24.9 비만 전단계, 25 이상 비만 (대한비만학회)</li>
+        <li>소모 열량: MET × 3.5 × 체중(kg) ÷ 200 × 분 (Compendium of Physical Activities 근사값)</li>
+      </ul>
+      <p class="muted">의학적 조언이 아닙니다. 지병·통증이 있으면 전문가와 먼저 상의하세요.</p>
+    </div>
+  </section>
+</aside>
+<button class="glass gChip" id="panelOpen" hidden>메뉴 열기</button>
+
+<!-- 따라 하기 화면 -->
+<div id="sess" hidden>
+  <div class="glass sTop"><span id="sProg"></span><span id="sClock">0:00</span><span id="sKcal">0 kcal</span></div>
+  <div class="glass sCard">
+    <p class="sStage" id="sStage">준비</p>
+    <h2 id="sName">스쿼트</h2>
+    <p class="sSet" id="sSet"></p>
+    <div class="sBig"><b id="sCount">0</b><small id="sUnit">/ 12회</small></div>
+    <div class="sBar"><i id="sBarFill"></i></div>
+    <p class="sCue" id="sCue"></p>
+    <div class="sBtns">
+      <button class="btn" id="sPause">일시정지</button>
+      <button class="btn" id="sSkip">건너뛰기</button>
+      <button class="btn" id="sMore" hidden>+10초</button>
+      <button class="btn" id="sEnd">끝내기</button>
+    </div>
+  </div>
+</div>
+<div class="glass" id="gCaption" hidden></div>
+
+<!-- 운동 설명 -->
+<div class="modalBack" id="exModal" hidden>
+  <div class="glass card modal" role="dialog" aria-modal="true" aria-labelledby="exTitle">
+    <button class="modalX" data-close aria-label="닫기"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <p class="vTag" id="exTag"></p>
+    <h2 id="exTitle"></h2>
+    <p class="muted" id="exMeta"></p>
+    <h3>자세 포인트</h3><ol id="exCues" class="tipList"></ol>
+    <h3>흔한 실수</h3><ul id="exMist" class="tipList warn"></ul>
+    <p class="exNext" id="exNext"></p>
+    <div class="mlButtons" style="margin-top:14px">
+      <button class="btn" id="exDemo">트레이너 시범 보기</button>
+      <button class="btn primary" id="exGo">이 운동 따라 하기</button>
+    </div>
+    <button class="btn wide" data-close>닫기</button>
+  </div>
+</div>
+
+<!-- 운동 끝 -->
+<div class="modalBack" id="doneModal" hidden>
+  <div class="glass card modal" role="dialog" aria-modal="true" aria-labelledby="doneTitle">
+    <button class="modalX" data-close aria-label="닫기"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <h2 id="doneTitle">수고했습니다!</h2>
+    <div class="tiles" id="doneTiles"></div>
+    <h3>얼마나 힘들었나요? <small>1 매우 쉬움 · 10 한계</small></h3>
+    <div class="chips" id="rpe"></div>
+    <p class="muted hint" id="rpeHint">7~8 정도가 알맞습니다 (2~3회 더 할 수 있는 정도).</p>
+    <button class="btn primary wide" id="doneSave">기록에 저장</button>
+    <button class="btn wide" data-close>닫기</button>
+  </div>
+</div>
+
+<div id="tip" role="tooltip" hidden></div>
+<div id="toast" role="status"></div>
+<script type="module" src="gym.js?v=1"></script>
+</body>
+</html>

@@ -10,7 +10,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%236366f1'/%3E%3Cpath d='M5 17h5l3-8 5 15 3-7h6' fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <link rel="stylesheet" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=7">
+<link rel="stylesheet" href="style.css?v=8">
 </head>
 <body>
 <canvas id="scene" aria-label="클럽 3D 화면"></canvas>
@@ -53,6 +53,12 @@
         <p>DJ 부스, LED 월, 레이저. 하우스부터 덥스텝, 드럼 앤 베이스까지 9곡. 내 음원을 myList에 담아 틀 수도 있습니다.</p>
         <button class="btn primary big" data-venue="club">클럽 줄 서기</button>
       </article>
+      <article class="glass card venueCard gym">
+        <p class="vTag">PT 헬스장</p>
+        <h2>PT GYM</h2>
+        <p>트레이너 시범을 보며 따라 하기. 목표 설정, 매일 기록, 통계까지.</p>
+        <a class="btn primary big" href="gym.html">헬스장 들어가기</a>
+      </article>
       <article class="glass card venueCard retro">
         <p class="vTag">7080 라이브 무대</p>
         <h2>그때 그 노래</h2>
@@ -84,6 +90,7 @@
     <div id="trackList"></div>
     <label class="row" id="autoNextRow"><span>곡이 끝나면 다음 곡<small>EDM 9곡을 차례로 틉니다</small></span><input type="checkbox" id="autoNext"></label>
     <label class="row"><span>음량</span><input type="range" id="volume" min="0" max="100"></label>
+    <label class="row"><span>손 들기·점프 전원 따라 하기<small>켜면 나 말고 실내 손님 모두가 따라 합니다</small></span><input type="checkbox" id="allFollow"></label>
     <label class="row"><span>조명 효과 줄이기<small>깜박임과 레이저를 끕니다</small></span><input type="checkbox" id="lowFx"></label>
     <p class="muted hint">화면을 끌면 시점이 돌고, 입장 후에는 바닥을 눌러 걸어갑니다. WASD도 됩니다.</p>
     <button class="btn wide" data-close>닫기</button>
@@ -141,6 +148,6 @@
 </div>
 <div id="fade"></div>
 
-<script type="module" src="app.js?v=24"></script>
+<script type="module" src="app.js?v=25"></script>
 </body>
 </html>

@@ -15,7 +15,7 @@ const later = (sec, f) => setTimeout(f, sec * 1000);
 
 /* ───── 설정 ───── */
 const KEY = 'clubpulse.v1';
-const settings = Object.assign({ autoNext: true, volume: 80, tracks: { club: 'neon', live7080: 'gogo' }, lowFx: matchMedia('(prefers-reduced-motion: reduce)').matches }, (() => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } })());
+const settings = Object.assign({ allFollow: false, autoNext: true, volume: 80, tracks: { club: 'neon', live7080: 'gogo' }, lowFx: matchMedia('(prefers-reduced-motion: reduce)').matches }, (() => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } })());
 const saveSettings = () => { try { localStorage.setItem(KEY, JSON.stringify(settings)); } catch { /* 사생활 모드 */ } };
 const fxState = { full: !settings.lowFx };
 
@@ -767,13 +767,26 @@ function stopMingle(x = null, z = null) {
   mingling.forEach((n) => { n.mingle = false; });
   mingling = []; renderUi();
 }
+/* 따라 하는 사람: 기본은 어울리는 사람만, '전원 따라 하기'를 켜면 나 말고 실내 손님 전원 (가까운 사람부터 물결처럼) */
+const followers = () => {
+  if (!settings.allFollow) return mingling;
+  return npcs.filter((n) => !n.isStaff && !n.inLine && !n.target && !performers.includes(n) && ['floor', 'table', 'bar'].includes(n.role))
+    .sort((p, q) => Math.hypot(p.x - player.x, p.z - player.z) - Math.hypot(q.x - player.x, q.z - player.z));
+};
 function handsUp() {
   player.upTo = player.upTo ? 0 : 1;
-  if (player.upTo) { mingling.forEach((n, i) => later(0.15 * i, () => { n.upTo = 1; })); later(3.4, () => { player.upTo = 0; mingling.forEach((n) => { n.upTo = 0; }); renderUi(); }); }
-  else mingling.forEach((n) => { n.upTo = 0; });
+  const f = followers(), gap = settings.allFollow ? 0.04 : 0.15;
+  if (player.upTo) { f.forEach((n, i) => later(gap * i, () => { n.upTo = 1; })); later(3.4 + gap * f.length, () => { player.upTo = 0; f.forEach((n) => { n.upTo = 0; }); renderUi(); }); }
+  else f.forEach((n) => { n.upTo = 0; });
   renderUi();
 }
-function doJump() { jump(player); mingling.forEach((n, i) => later(0.08 * i, () => jump(n))); }
+function doJump() { jump(player); const f = followers(); f.forEach((n, i) => later((settings.allFollow ? 0.03 : 0.08) * i, () => jump(n))); }
+function toggleAllFollow() {
+  settings.allFollow = !settings.allFollow; saveSettings();
+  if ($('allFollow')) $('allFollow').checked = settings.allFollow;
+  toast(settings.allFollow ? '손 들기·점프를 나 말고 전원이 따라 합니다' : '어울리는 사람만 따라 합니다', 2.2);
+  renderUi();
+}
 function highFive() {
   const pool = mingling.length ? mingling : npcs;
   const near = pool.map((n) => ({ n, d: Math.hypot(n.x - player.x, n.z - player.z) })).sort((a, b) => a.d - b.d)[0];
@@ -822,6 +835,7 @@ function renderUi() {
     list.push({ label: mingling.length ? '다른 사람과 어울리기' : '어울리기', primary: !mingling.length, fn: mingle });
     list.push({ label: '손 들기', on: !!player.upTo, fn: handsUp });
     list.push({ label: '점프', fn: doJump });
+    list.push({ label: settings.allFollow ? '전원 따라 하기: 켬' : '전원 따라 하기: 끔', on: settings.allFollow, fn: toggleAllFollow });
     list.push({ label: '하이파이브', fn: highFive });
     list.push({ label: '테이블로', fn: () => walkToTable(myTable || nearestFreeTable()) });
   }
@@ -866,7 +880,8 @@ $('nowChip').onclick = () => {
 };
 $('autoNextRow').hidden = venue.id !== 'club';
 $('autoNext').onchange = (e) => { settings.autoNext = e.target.checked; edm.autoNext = venue.id === 'club' && settings.autoNext; saveSettings(); };
-$('btnSettings').onclick = () => { drawTracks(); $('autoNext').checked = settings.autoNext; $('volume').value = settings.volume; $('lowFx').checked = settings.lowFx; $('settingsModal').hidden = false; };
+$('btnSettings').onclick = () => { drawTracks(); $('autoNext').checked = settings.autoNext; $('volume').value = settings.volume; $('lowFx').checked = settings.lowFx; $('allFollow').checked = settings.allFollow; $('settingsModal').hidden = false; };
+$('allFollow').onchange = (e) => { settings.allFollow = e.target.checked; saveSettings(); renderUi(); };
 $('volume').oninput = (e) => { settings.volume = +e.target.value; edm.setVolume(settings.volume / 100); saveSettings(); };
 $('lowFx').onchange = (e) => { settings.lowFx = e.target.checked; fxState.full = !settings.lowFx; saveSettings(); };
 
