@@ -758,14 +758,25 @@ function mingle() {
     n.danceTo = 0; n.mingle = true;
     goTo(n, x, z, () => {
       n.yawTo = Math.atan2(player.x - n.x, player.z - n.z);
-      n.danceTo = 1; n.danceStyle = pickStyle(venue.mingleStyles); n.groove = 1.1;
+      n.danceTo = 1;
     });
     later(0.3 + i * 1.1, () => { if (n.mingle) say(n, HELLOS[(i + Math.floor(base * 10)) % HELLOS.length], 2.3); });
   });
   mingling = near; camSet(cam.thetaTo, 1.34, 7.4, 1.9);
   grooving = true; applyGroove();
   say(player, '안녕하세요!', 1.8); player.waveTo = 1; later(1.1, () => { player.waveTo = 0; });
+  toast('모인 사람들이 내 동작을 따라 합니다', 2.4);
   renderUi();
+}
+/* 어울리는 사람들은 내 동작을 그대로 따라 한다: 춤 종류·흥·손 들기·손 흔들기·박자 */
+function syncMingle() {
+  mingling.forEach((n, i) => {
+    if (n.target) return;
+    n.danceTo = player.danceTo; n.danceStyle = player.danceStyle; n.groove = player.groove;
+    n.beatOff = player.beatOff - 0.02 * (i + 1);          // 아주 조금씩 늦게 따라 한다
+    n.upTo = player.upTo; n.waveTo = player.waveTo;
+    n.yawTo = Math.atan2(player.x - n.x, player.z - n.z);
+  });
 }
 function stopMingle(x = null, z = null) {
   const keep = x != null && Math.hypot(x - player.x, z - player.z) < 2.6;
@@ -858,7 +869,7 @@ function renderUi() {
   else if (step === 4 && !grooving) caption('음악에 몸을 맡겨 보세요', '건들거리기를 누르면 박자에 맞춰 흔듭니다');
   else if (step === 4) caption(grooveBeats < 8 ? `좋습니다. 그대로 리듬을 타세요` : '몸이 풀렸습니다. 메인 스테이지로 가 볼까요?');
   else if (step === 5 && onFloor() && !mingling.length) caption('어울리기를 누르면 주변 사람들이 모입니다');
-  else if (step === 5 && mingling.length) caption(`함께 ${mingling.length + 1}명이 어울리는 중입니다`, hi5 ? `하이파이브 ${hi5}회` : venue.chorusHint);
+  else if (step === 5 && mingling.length) caption(`함께 ${mingling.length + 1}명이 어울리는 중입니다`, hi5 ? `하이파이브 ${hi5}회` : '모두 내 동작을 따라 합니다. 흥·셔플·손 들기·점프를 바꿔 보세요');
   else if (step === 5) caption('메인 스테이지로 가서 사람들과 어울려 보세요');
   else caption('');
 }
@@ -1119,7 +1130,7 @@ function npcTick(n, t, clock) {
   if (t < n.nextAct || n.target) return;
   n.nextAct = t + rand(8, 22);
   if (n.role === 'floor') {
-    if (Math.random() < 0.3) n.danceStyle = pickStyle(venue.styles);
+    if (!n.mingle && Math.random() < 0.3) n.danceStyle = pickStyle(venue.styles);
     const d = Math.hypot(n.x - player.x, n.z - player.z);
     if (d > 2 && d < 7 && Math.random() < 0.08) say(n, pick(venue.cheers), 1.6);
     if (!n.mingle && Math.random() < 0.14) {
@@ -1137,7 +1148,7 @@ function crowdBeat(clock) {
   if (clock.section.name === 'drop' && clock.section.barIn === 0 && clock.bar !== dropSeen) {
     dropSeen = clock.bar;
     if (phase === 'room' && player.z < 4) toast(venue.dropToast, 1.4);
-    npcs.filter((n) => n.role === 'floor').forEach((n, i) => {
+    npcs.filter((n) => n.role === 'floor' && !n.mingle).forEach((n, i) => {
       if (venue.jumps && Math.random() < 0.8) later(i * 0.012, () => jump(n));
       if (!venue.jumps && Math.random() > 0.55) return;
       n.upTo = 1; later(rand(2.2, 5), () => { n.upTo = 0; });
@@ -1149,7 +1160,6 @@ function crowdBeat(clock) {
   if (venue.jumps && clock.section.name === 'drop' && b !== crowdBeat.last) {
     crowdBeat.last = b;
     for (let i = 0; i < 4; i++) { const n = pick(npcs); if (n.role === 'floor' && !n.target) jump(n); }
-    if (mingling.length && b % 4 === 0) jump(pick(mingling));
   }
 }
 
@@ -1220,6 +1230,7 @@ function frame(nowMs) {
     }
   }
   if (tray.visible) { waiter.arms[1].h.getWorldPosition(tray.position); tray.position.y += 0.02; }
+  syncMingle();
   if (phase === 'room' && (clock.section.name === 'drop')) crowdBeat(clock); else crowdBeat.last = -1;
   if (clock.section.name !== 'drop') dropSeen = -1;
 
