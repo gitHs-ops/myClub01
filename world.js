@@ -505,8 +505,8 @@ export function buildWorld(scene, fxState, theme) {
     for (let y = 170; y >= 70; y -= 18) { bulb(158, y, n++); }
     led.textAlign = 'center'; led.textBaseline = 'middle';
     led.shadowColor = '#ff9d2e'; led.shadowBlur = 18; led.fillStyle = '#ffe9b8';
-    led.font = '800 78px Outfit, sans-serif'; led.fillText('7080', W2 / 2, 104);
-    led.font = '700 22px Pretendard, "Malgun Gothic", sans-serif'; led.fillText('그때 그 노래', W2 / 2, 155);
+    led.font = '900 92px Pretendard, "Malgun Gothic", sans-serif'; led.fillText('현수', W2 / 2, 106);
+    led.font = '700 22px Pretendard, "Malgun Gothic", sans-serif'; led.fillText('7080 · 그때 그 노래', W2 / 2, 162);
     led.shadowBlur = 0;
     ledT.needsUpdate = true;
   }
@@ -555,8 +555,9 @@ export function buildWorld(scene, fxState, theme) {
     }
     const scale = 1 + clock.kick * 0.05;
     led.save(); led.translate(W2 / 2, H / 2); led.scale(scale, scale);
-    led.font = '800 92px Outfit, sans-serif'; led.textAlign = 'center'; led.textBaseline = 'middle';
-    led.shadowColor = css(h2, 60); led.shadowBlur = 26; led.fillStyle = '#ffffff'; led.fillText('PULSE', 0, 2);
+    led.font = '900 132px Pretendard, "Malgun Gothic", sans-serif'; led.textAlign = 'center'; led.textBaseline = 'middle';
+    led.shadowColor = css(h2, 60); led.shadowBlur = 30; led.fillStyle = '#ffffff'; led.fillText('현수', 0, 10);
+    led.font = '800 24px Outfit, sans-serif'; led.shadowBlur = 12; led.fillText('CLUB PULSE', 0, -82);
     led.restore(); led.shadowBlur = 0;
     ledT.needsUpdate = true;
   }
