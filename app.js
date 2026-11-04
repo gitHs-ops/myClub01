@@ -737,7 +737,7 @@ edm.autoNext = venue.id === 'club' && settings.autoNext;
 const announceTrack = (t) => { $('nowName').textContent = t.name; toast(`${t.name} · ${t.desc}`, 2.6); if (!$('settingsModal').hidden) drawTracks(); };
 edm.onTrack = announceTrack;
 $('nowChip').onclick = () => {
-  // 7080은 기본 곡 다음에 myList 곡으로 이어진다
+  // 기본 곡 다음에 myList 곡으로 이어진다
   const order = [...venueTracks, ...myItems()], cur = nowFile || edm.track, next = order[(order.indexOf(cur) + 1) % order.length];
   if (next.blob) { playItem(next); return; }
   nowFile = null;
@@ -750,18 +750,18 @@ $('btnSettings').onclick = () => { drawTracks(); $('autoNext').checked = setting
 $('volume').oninput = (e) => { settings.volume = +e.target.value; edm.setVolume(settings.volume / 100); saveSettings(); };
 $('lowFx').onchange = (e) => { settings.lowFx = e.target.checked; fxState.full = !settings.lowFx; saveSettings(); };
 
-/* ───── myList: 내 음원 (7080 무대) ───── */
+/* ───── myList: 내 음원 (무대마다 따로) ───── */
 let saved = [], temp = [], nowFile = null, nowUrl = null, armedDelete = null, tempSeq = 0;
 const myItems = () => [...saved, ...temp];
 const fmtSize = (b) => (b >= 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
 const fmtTime = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 async function refreshSaved() {
-  try { saved = await listTracks(); } catch { saved = []; toast('이 브라우저에서는 myList를 쓸 수 없습니다'); }
+  // 무대마다 목록이 따로다. 예전에 저장한 곡(무대 표시 없음)은 7080 곡이다
+  try { saved = (await listTracks()).filter((x) => (x.venue || 'live7080') === venue.id); } catch { saved = []; toast('이 브라우저에서는 myList를 쓸 수 없습니다'); }
   // 재생 중인 곡은 같은 항목으로 다시 잇는다
   if (nowFile && !nowFile.temp) nowFile = saved.find((x) => x.id === nowFile.id) || nowFile;
 }
 function renderMyList() {
-  if (!venue.band) return;
   const box = $('myListItems'); box.textContent = '';
   $('myListEmpty').hidden = myItems().length > 0;
   myItems().forEach((it) => {
@@ -824,7 +824,7 @@ function deleteItem(it) {
 }
 async function keepTemp(it) {
   try {
-    const rec = { title: it.title, name: it.name, size: it.size, type: it.type, blob: it.blob, analysis: it.analysis || null, addedAt: Date.now() };
+    const rec = { venue: venue.id, title: it.title, name: it.name, size: it.size, type: it.type, blob: it.blob, analysis: it.analysis || null, addedAt: Date.now() };
     const id = await addTrack(rec);
     temp = temp.filter((x) => x !== it);
     await refreshSaved();
@@ -842,7 +842,7 @@ async function addFiles(files, keep) {
     for (const f of good) {
       if (saved.some((x) => x.name === f.name && x.size === f.size)) { toast(`이미 있는 곡입니다: ${titleOf(f.name)}`); continue; }
       try {
-        const id = await addTrack({ title: titleOf(f.name), name: f.name, size: f.size, type: f.type, blob: f, analysis: null, addedAt: Date.now() });
+        const id = await addTrack({ venue: venue.id, title: titleOf(f.name), name: f.name, size: f.size, type: f.type, blob: f, analysis: null, addedAt: Date.now() });
         first ??= id;
       } catch (err) { toast(err?.name === 'QuotaExceededError' ? '브라우저 저장 공간이 부족합니다' : '이 브라우저에서는 저장할 수 없어 이번만 재생합니다'); temp.push({ temp: true, id: `t${++tempSeq}`, title: titleOf(f.name), name: f.name, size: f.size, type: f.type, blob: f, analysis: null }); }
     }
@@ -855,14 +855,15 @@ async function addFiles(files, keep) {
     temp.push(...added); playItem(added[0]);
   }
 }
-if (venue.band) {
+{
   $('btnMyList').hidden = false;
+  $('myListStop').textContent = venue.band ? '밴드 연주로 돌아가기' : 'DJ 음악으로 돌아가기';
   $('btnMyList').onclick = () => { armedDelete = null; renderMyList(); $('myListModal').hidden = false; };
   $('mlAdd').onclick = () => $('mlSaveInput').click();
   $('mlTemp').onclick = () => $('mlTempInput').click();
   $('mlSaveInput').onchange = (e) => { const f = [...e.target.files]; e.target.value = ''; addFiles(f, true); };
   $('mlTempInput').onchange = (e) => { const f = [...e.target.files]; e.target.value = ''; addFiles(f, false); };
-  $('myListStop').onclick = () => { backToBand(); toast('밴드 연주로 돌아갑니다'); };
+  $('myListStop').onclick = () => { backToBand(); toast(venue.band ? '밴드 연주로 돌아갑니다' : 'DJ 음악으로 돌아갑니다'); };
   edm.onFileEnd = () => {
     const list = myItems(), i = list.indexOf(nowFile);
     if (!list.length || i < 0) { backToBand(); return; }
