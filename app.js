@@ -1,7 +1,7 @@
 import * as THREE from './vendor/three.min.js';
 import { Edm, TRACKS } from './edm.js?v=7';
 import { makePerson, updatePerson, goTo, say, jump, setWardrobe } from './people.js?v=8';
-import { buildWorld, ROOM, FLOOR, TABLES, BAR_SPOTS } from './world.js?v=12';
+import { buildWorld, ROOM, FLOOR, TABLES, BAR_SPOTS } from './world.js?v=13';
 import { VENUES } from './venues.js?v=4';
 import { listTracks, addTrack, putTrack, removeTrack, isAudioFile, titleOf, analyze, isLrcFile, readText, lyricLines, id3Lyrics } from './mylist.js?v=2';
 
@@ -372,9 +372,10 @@ function updateCouples(dt, t) {
   }
 }
 /* 나도 블루스: 근처에 앉은 손님 한 분이 나와 함께 춘다 */
-function blues() {
+function blues(pref) {
   if (playerCouple()) { stopBlues(); return; }
-  const cand = npcs.filter((n) => n.role === 'table' && n.sit && !n.target && n.seat).sort((a, b) => Math.hypot(a.x - player.x, a.z - player.z) - Math.hypot(b.x - player.x, b.z - player.z));
+  const want = pref && pref.root && pref.sit && pref.seat ? [pref] : [];
+  const cand = want.length ? want : npcs.filter((n) => n.role === 'table' && n.sit && !n.target && n.seat).sort((a, b) => Math.hypot(a.x - player.x, a.z - player.z) - Math.hypot(b.x - player.x, b.z - player.z));
   const n = cand[0];
   if (!n) { toast('함께 출 분이 없습니다'); return; }
   n.home = n.seat; n.sit = false;
@@ -389,6 +390,149 @@ function blues() {
 }
 function stopBlues() { const c = playerCouple(); if (!c) return; endCouple(c); applyGroove(); renderUi(); }
 
+/* ───── 재즈 바: 합석 요청과 대화 ───── */
+let mate = null, joinAsker = null, joinSeat = null, joinNext = 0;
+const ieyo = (w) => { const c = w.charCodeAt(w.length - 1); return w + (c >= 0xac00 && c <= 0xd7a3 && (c - 0xac00) % 28 ? '이에요' : '예요'); };
+const shortSay = (p, t, sec = 3.2) => say(p, t.length > 17 ? `${t.slice(0, 16)}…` : t, sec);
+function sendBack(n) {
+  const from = n.askFrom || {}; n.askFrom = null;
+  if (from.seat && !from.seat.by) walkToSeat(n, from.seat);
+  else if (from.bar && !from.bar.by) { from.bar.by = n; goTo(n, from.bar.x, from.bar.z, () => { n.yawTo = Math.PI / 2 + rand(-0.3, 0.3); setRole(n, 'bar'); n.danceTo = 1; n.danceStyle = 0; n.groove = 0.3; }); }
+  else seatGuest(n);
+}
+function mateHere() { return !!mate && mate.seat?.T === myTable && mate.sit && !mate.target; }
+function joinTick() {
+  if (!venue.jazz || phase !== 'room') return;
+  // 요청 중에 내가 자리를 뜨면 없던 일로
+  if (joinAsker && !$('joinAsk').hidden && !(player.sit && player.seat?.T === myTable)) { declineJoin(true); return; }
+  if (joinAsker || serving || !player.sit || !myTable || !myDrink.cup || playerCouple() || mateHere()) return;
+  if (!joinNext) { joinNext = now() + rand(12, 20); return; }
+  if (now() < joinNext) return;
+  joinNext = now() + rand(40, 70);
+  const S = myTable.seats.find((x) => !x.by);
+  if (!S) return;
+  const cand = npcs.filter((n) => !n.target && n !== mate && !n.partner && ((n.role === 'table' && n.sit && n.seat && n.seat.T !== myTable) || n.role === 'bar'))
+    .sort((a, b) => Math.hypot(a.x - player.x, a.z - player.z) - Math.hypot(b.x - player.x, b.z - player.z)).slice(0, 8);
+  if (!cand.length) return;
+  const n = pick(cand);
+  if (n.role === 'bar') { const b = BAR_SPOTS.find((x) => x.by === n); if (b) b.by = null; n.askFrom = { bar: b }; }
+  else { n.askFrom = { seat: n.seat }; n.seat.by = null; n.seat = null; }
+  n.sit = false; n.role = 'walk'; joinAsker = n; joinSeat = S; S.by = n;   // 자리는 맡아 둔다
+  const T = myTable, dx = S.x - T.x, dz = S.z - T.z, d = Math.hypot(dx, dz) || 1;
+  goTo(n, S.x + (dx / d) * 0.55, S.z + (dz / d) * 0.55, () => {
+    if (joinAsker !== n) return;
+    if (!(player.sit && player.seat?.T === T)) { declineJoin(true); return; }
+    n.yawTo = Math.atan2(player.x - n.x, player.z - n.z); n.danceTo = 0;
+    if (!player.target) player.yawTo = Math.atan2(n.x - player.x, n.z - player.z);
+    const ask = pick(['혹시 합석해도 될까요?', '자리 비었으면 같이 앉아도 될까요?', '혼자 오셨어요? 같이 앉아도 돼요?']);
+    shortSay(n, ask, 5);
+    $('joinMsg').textContent = `“${ask}”`;
+    $('joinAsk').hidden = false; renderUi();
+  });
+}
+function acceptJoin() {
+  const n = joinAsker, S = joinSeat; if (!n) return;
+  $('joinAsk').hidden = true; joinAsker = null; joinSeat = null;
+  if (n.askFrom?.seat) n.askFrom.seat.by = null;
+  n.askFrom = null; S.by = null;
+  say(player, '네, 앉으세요', 1.6);
+  n.persona = n.persona || makePersona();
+  walkToSeat(n, S, () => {
+    if (!n.cup) npcCups(n);
+    mate = n; n.nextAct = now() + 30;
+    shortSay(n, '고마워요!', 2);
+    openChat();
+    later(0.8, () => mateSays(`고마워요. 저는 ${ieyo(n.persona.name)}. ${pick(['혼자 마시기 좀 쓸쓸했거든요.', '여기 자리가 음악 듣기 제일 좋네요.', '오늘 연주 정말 좋죠?'])}`));
+    renderUi();
+  });
+}
+function declineJoin(silent = false) {
+  const n = joinAsker, S = joinSeat; if (!n) return;
+  $('joinAsk').hidden = true; joinAsker = null; joinSeat = null;
+  if (S && S.by === n) S.by = null;
+  if (!silent) { say(player, '죄송해요, 일행이 와요', 1.8); later(1, () => shortSay(n, pick(['아, 네. 실례했습니다', '알겠어요. 좋은 시간 되세요', '네, 즐거운 밤 되세요']), 2.2)); }
+  later(silent ? 0.2 : 2.2, () => sendBack(n));
+  joinNext = now() + rand(45, 80); renderUi();
+}
+$('joinYes').onclick = acceptJoin;
+$('joinNo').onclick = () => declineJoin();
+$('joinX').onclick = () => declineJoin();
+
+/* 대화: 키워드로 알아듣는 간단한 말동무 (인공지능이 아니라 정해 둔 말로 답한다) */
+const P_NAMES = ['지수', '민호', '서연', '태현', '유나', '준혁', '하린', '도윤', '수아', '현우'];
+const P_JOBS = [['디자이너', '요즘 포스터 작업이 많아서 정신없어요'], ['간호사', '오늘 겨우 쉬는 날이에요'], ['개발자', '하루 종일 화면만 봤더니 눈이 아파요'], ['요리사', '주방 마감하고 바로 왔어요'], ['선생님', '방학이라 여유가 좀 있어요'], ['사진작가', '여기 조명이 좋아서 찍고 싶을 정도예요'], ['회사원', '야근 끝나고 한 잔 하러 왔어요'], ['대학원생', '논문 쓰다가 머리 식히러 왔어요']];
+const P_HOBBY = ['LP 모으기', '주말 등산', '필름 사진', '요리', '피아노 배우기', '고양이 돌보기', '옛날 영화 보기', '달리기'];
+const P_MUSIC = ['쳇 베이커', '빌 에반스', '엘라 피츠제럴드', '노라 존스', '마일스 데이비스', '보사노바'];
+function makePersona() { const j = pick(P_JOBS); return { name: pick(P_NAMES), job: j[0], jobLine: j[1], hobby: pick(P_HOBBY), music: pick(P_MUSIC), regular: Math.random() < 0.5, asked: null, said: new Set(), lastTalk: now() }; }
+function chatLine(who, text) {
+  const li = document.createElement('div'); li.className = `msg ${who}`; li.textContent = text;
+  $('chatLog').append(li); $('chatLog').scrollTop = $('chatLog').scrollHeight;
+  return li;
+}
+function mateSays(text) { if (!mate) return; chatLine('you', text); shortSay(mate, text); mate.persona.lastTalk = now(); }
+function openChat() {
+  if (!mate) return;
+  $('chatTitle').textContent = `${mate.persona.name} 님과 대화`;
+  $('chatSub').textContent = `${mate.persona.job} · 같은 탁자`;
+  $('chatPanel').hidden = false; renderUi();
+  setTimeout(() => $('chatInput').focus(), 50);
+}
+function closeChat() { $('chatPanel').hidden = true; renderUi(); }
+$('chatX').onclick = closeChat; $('chatClose').onclick = closeChat;
+['안녕하세요', '이 곡 좋네요', '무슨 일 하세요?', '건배해요', '여기 자주 오세요?', '블루스 한 곡 어때요?'].forEach((q) => {
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'qchip'; b.textContent = q; b.onclick = () => sendChat(q); $('chatQuick').append(b);
+});
+$('chatForm').onsubmit = (e) => { e.preventDefault(); const v = $('chatInput').value.trim(); if (v) sendChat(v); $('chatInput').value = ''; };
+function sendChat(text) {
+  if (!mate) return;
+  chatLine('me', text); shortSay(player, text);
+  if (!mateHere()) { later(0.6, () => chatLine('sys', `${mate.persona.name} 님이 자리에 없습니다`)); return; }
+  const typing = chatLine('you typing', '…');
+  later(rand(0.8, 1.6), () => { typing.remove(); const r = mateReply(text); mateSays(r.text); r.after?.(); });
+}
+function mateReply(raw) {
+  const m = mate.persona, t = raw.trim(), has = (re) => re.test(t), once = (key, a, b) => { if (m.said.has(key)) return b; m.said.add(key); return a; };
+  const nm = t.match(/(?:저는|전|제 이름은|난|나는)\s*([가-힣A-Za-z]{2,6}?)(?:이에요|예요|입니다|이야|야|라고 해요|이라고 해요|라고|이라고)/);
+  const songName = edm.fileMode ? '이 곡' : `「${edm.track.name}」`;
+  let text, after = null;
+  const asked = m.asked; m.asked = null;
+  if (nm) { m.playerName = nm[1]; text = `${nm[1]} 님, 반가워요. 이름 좋네요.`; }
+  else if (has(/건배|짠|cheers|치어스|위하여/i)) {
+    text = pick(['건배!', '좋아요, 건배!', '오늘 밤을 위하여!']);
+    after = () => { edm.clink(); mate.sipTo = 1; later(1.5, () => { mate.sipTo = 0; }); if (myDrink.cup && myDrink.level > 0 && !player.sipTo) later(0.4, sip); };
+  }
+  else if (has(/블루스|춤|춰|댄스|출까/)) { text = pick(['좋아요, 한 곡 춰요!', '천천히 추는 거면 자신 있어요', '이 곡이면 딱이네요. 나가요']); after = () => later(1.2, () => { if (mateHere()) blues(mate); }); }
+  else if (has(/안녕|반가|처음 뵙/)) text = once('hi', `안녕하세요! 저는 ${ieyo(m.name)}.`, '네, 다시 반가워요.');
+  else if (has(/이름|누구세요|성함/)) text = `${ieyo(m.name)}. ${m.playerName ? `${m.playerName} 님 맞죠?` : '그쪽은요?'}`, m.asked = m.playerName ? null : 'name';
+  else if (has(/무슨\s*일|어떤\s*일|직업|회사|일\s*하/)) { text = `${m.job} 일을 해요. ${m.jobLine}.`; m.asked = 'job'; }
+  else if (has(/취미|주말|쉬는\s*날|뭐\s*하고\s*놀/)) text = `${m.hobby} 좋아해요. 요즘 거기에 빠져 있어요.`;
+  else if (has(/나이|몇\s*살|연세|나이가/)) text = '그건 비밀이에요. 대신 이 바는 꽤 오래 다녔어요.';
+  else if (has(/좋아하는\s*(가수|음악|뮤지션)|누구\s*좋아/)) { text = `${m.music} 좋아해요. 비 오는 밤에 들으면 최고예요. 그쪽은요?`; m.asked = 'music'; }
+  else if (has(/첼로/)) text = '첼로 소리가 낮게 깔리니까 노래가 더 따뜻하게 들려요.';
+  else if (has(/피아노/)) text = '피아노 치시는 분 손이 정말 가볍네요. 솔로 나올 때 소름 돋았어요.';
+  else if (has(/드럼|브러시/)) text = '브러시로 쓸어 주는 소리, 저 그거 너무 좋아해요.';
+  else if (has(/가수|보컬|노래\s*잘|목소리/)) text = '목소리가 벨벳 같죠? 저 가수 보러 오는 사람 많대요.';
+  else if (has(/곡|노래|음악|재즈|스윙|보사|발라드|연주|밴드/)) { text = `지금 나오는 건 ${songName}${edm.fileMode ? '이에요' : ieyo(edm.track.name).slice(edm.track.name.length)}. ${pick(['리듬이 기분 좋네요.', '이런 곡엔 위스키가 어울리죠.', '눈 감고 들으면 더 좋아요.'])}`; if (Math.random() < 0.5) m.asked = 'music', text += ' 평소엔 어떤 음악 들으세요?'; }
+  else if (has(/술|마시|음료|칵테일|위스키|와인|맥주|뭐\s*드|한\s*잔/)) text = `저는 ${mate.cup ? '이거' : '위스키'} 마시고 있어요. ${myDrink.def ? `${myDrink.def.name}도 맛있죠?` : '뭐 드실래요?'}`;
+  else if (has(/자주|단골|여기\s*(와|오)|처음\s*(와|오)/)) { text = m.regular ? '한 달에 두세 번은 와요. 금요일 밤이 제일 좋아요.' : '저도 오늘 처음이에요. 친구 추천으로 왔어요.'; m.asked = 'place'; text += ' 그쪽은요?'; }
+  else if (has(/날씨|비\s*(와|오)|추워|추운|더워|밖에/)) text = '밖은 바람이 좀 차더라고요. 여기 들어오니까 따뜻하네요.';
+  else if (has(/고마|감사/)) text = pick(['천만에요.', '저야말로 고마워요.']);
+  else if (has(/예쁘|잘생|멋지|멋있|매력/)) text = '어머, 고마워요. 그쪽도요.';
+  else if (has(/ㅋㅋ|ㅎㅎ|하하|웃기/)) text = pick(['하하, 재밌는 분이네요.', '저도 모르게 웃었어요.']);
+  else if (has(/가야|가볼|먼저\s*일어|잘\s*가|안녕히|집에/)) text = '벌써요? 오늘 즐거웠어요. 조심히 들어가세요.';
+  else if (asked === 'music') text = `오, ${t.length > 12 ? '그 음악' : t} 좋죠. 취향이 잘 맞을 것 같아요.`;
+  else if (asked === 'job') text = '와, 멋진 일 하시네요. 힘들진 않으세요?';
+  else if (asked === 'name') { m.playerName = t.replace(/(이에요|예요|입니다|요)$/, '').slice(0, 6); text = `${m.playerName} 님, 기억할게요.`; }
+  else if (asked === 'place') text = '그렇구나. 앞으로 여기서 자주 뵈면 좋겠네요.';
+  else if (has(/\?|까요|나요|세요|어때/)) text = pick(['음… 글쎄요. 그쪽은 어떻게 생각하세요?', '좋은 질문이네요. 저는 반반이에요.', '그런 건 처음 생각해 봤어요.']);
+  else text = pick(['그렇군요. 더 얘기해 주세요.', '아, 정말요?', '음악 소리 때문에 잘 못 들었어요. 한 번만 다시요?', '그 얘기 좋네요.', '맞아요, 저도 그렇게 생각해요.']);
+  // 가끔은 먼저 묻는다
+  if (!m.asked && !after && Math.random() < 0.3) {
+    const q = pick([['music', ' 그쪽은 어떤 음악 좋아하세요?'], ['job', ' 무슨 일 하세요?'], ['place', ' 여기는 어떻게 알고 오셨어요?']]);
+    if (!m.said.has('q' + q[0])) { m.said.add('q' + q[0]); m.asked = q[0]; text += q[1]; }
+  }
+  return { text, after };
+}
 for (let i = 0; i < CROWD_BAR; i++) {
   const s = BAR_SPOTS[i * 2 % BAR_SPOTS.length], p = spawn(); npcs.push(p); s.by = p;
   place(p, s.x, s.z, Math.PI / 2 + rand(-0.3, 0.3)); setRole(p, 'bar'); npcCups(p); p.danceTo = 1; p.danceStyle = 0; p.groove = 0.3;
@@ -454,7 +598,7 @@ function tapFloor(cx, cy) {
   walkPlayer(clamp(hitP.x, ROOM.xMin, ROOM.xMax), clamp(hitP.z, ROOM.zMin, ROOM.zMax));
 }
 const keys = new Set();
-addEventListener('keydown', (e) => { if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code) && freeWalk() && !modalOpen()) { keys.add(e.code); e.preventDefault(); } if (e.code === 'Escape') closeModals(); });
+addEventListener('keydown', (e) => { if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return; if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code) && freeWalk() && !modalOpen()) { keys.add(e.code); e.preventDefault(); } if (e.code === 'Escape') closeModals(); });
 addEventListener('keyup', (e) => keys.delete(e.code));
 addEventListener('blur', () => keys.clear());
 
@@ -747,6 +891,7 @@ function sitAtTable(T) {
   if (!free.length) { toast('그 탁자는 자리가 다 찼습니다. 빈 자리로 갑니다', 2.2); const N = nearestFreeTable(); if (N !== T) sitAtTable(N); return; }
   if (T.seats.some((S) => S.by && S.by !== player)) toast('손님들과 합석합니다', 1.8);
   leaveSeat(player); stopMingle();
+  if (myTable && myTable !== T && mate) { mate = null; closeChat(); }
   myTable = T;
   camSet(clamp(-T.x * 0.05, -0.5, 0.5), 1.2, 4.2, 1.2);
   dest.visible = false;
@@ -1051,6 +1196,7 @@ function renderUi() {
     else list.push({ label: '한 잔 더', fn: () => openDrinks() });
   }
   if (step >= 3 && !player.target) list.push({ label: sending ? '보내는 중' : '다른 테이블에 한 잔 보내기', disabled: sending, fn: openSend });
+  if (venue.jazz && mateHere() && atTable) list.push({ label: $('chatPanel').hidden ? `${mate.persona.name} 님과 대화하기` : '대화창 닫기', primary: $('chatPanel').hidden && step >= 3, fn: () => ($('chatPanel').hidden ? openChat() : closeChat()) });
   if (atTable && buddyHere()) list.push({ label: offering ? '권하는 중' : '같이 온 분에게 권하기', disabled: offering, fn: () => openDrinks(true) });
   if (myDrink.sips > 0 || step >= 4) {
     list.push({ label: grooving ? '건들거리기 멈추기' : '건들거리기', primary: step === 4 && !grooving, on: grooving, fn: toggleGroove });
@@ -1479,6 +1625,7 @@ function frame(nowMs) {
   if (tray.visible) { waiter.arms[1].h.getWorldPosition(tray.position); tray.position.y += 0.02; }
   syncMingle();
   updateCouples(dt, t);
+  joinTick();
   if (phase === 'room' && (clock.section.name === 'drop')) crowdBeat(clock); else crowdBeat.last = -1;
   if (clock.section.name !== 'drop') dropSeen = -1;
 

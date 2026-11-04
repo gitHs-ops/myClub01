@@ -223,6 +223,72 @@ function buildBackWall(inside, theme, neonList, updaters, flare) {
   });
 }
 
+/* 재즈 바 실내: 짙은 초록 다마스크 벽지, 원목 징두리 판벽, 놋쇠 몰딩, 그림 액자, 벽등, 천장 돌림띠 */
+function buildJazzRoom(inside, flare) {
+  const paper = canvasOf(512, 512, (g, cw, ch) => {
+    g.fillStyle = '#14251d'; g.fillRect(0, 0, cw, ch);
+    g.fillStyle = 'rgba(201,162,39,.16)';
+    for (const [x, y] of [[128, 128], [384, 384], [384, 128], [128, 384]]) {
+      g.save(); g.translate(x, y);
+      for (let k = 0; k < 4; k++) { g.rotate(Math.PI / 2); g.beginPath(); g.ellipse(0, -42, 18, 40, 0, 0, 7); g.fill(); }
+      g.beginPath(); g.arc(0, 0, 14, 0, 7); g.fill(); g.restore();
+    }
+    g.strokeStyle = 'rgba(201,162,39,.1)'; g.lineWidth = 3;
+    for (let x = 0; x <= cw; x += 256) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, ch); g.stroke(); }
+  });
+  paper.wrapS = paper.wrapT = THREE.RepeatWrapping; paper.repeat.set(20, 4);
+  const paperM = new THREE.MeshStandardMaterial({ map: paper, roughness: 0.85 });
+  const panel = canvasOf(512, 128, (g, cw, ch) => {
+    g.fillStyle = '#3b2010'; g.fillRect(0, 0, cw, ch);
+    for (let x = 8; x < cw; x += 128) { g.fillStyle = '#4a2a15'; g.fillRect(x, 14, 112, ch - 28); g.strokeStyle = '#2a160a'; g.lineWidth = 4; g.strokeRect(x + 6, 20, 100, ch - 40); }
+  });
+  panel.wrapS = THREE.RepeatWrapping; panel.repeat.set(12, 1);
+  const panelM = new THREE.MeshStandardMaterial({ map: panel, roughness: 0.5 });
+  const brass = std(0xb08d3a, { roughness: 0.3, metalness: 0.85 }), darkWood = std(0x23130a, { roughness: 0.5 });
+  [-1, 1].forEach((s) => {
+    const x = s * 13.98, ry = -s * Math.PI / 2;
+    const wp = add(new THREE.PlaneGeometry(30, 6.9), paperM, x, 4.65, -9.5, inside); wp.rotation.y = ry;
+    const pn = add(new THREE.PlaneGeometry(30, 1.25), panelM, x, 0.62, -9.5, inside); pn.rotation.y = ry;
+    box(0.08, 0.08, 30, brass, x, 1.27, -9.5, inside);           // 판벽 위 몰딩
+    box(0.1, 0.16, 30, darkWood, x, 0.08, -9.5, inside);         // 걸레받이
+    box(0.12, 0.3, 30, darkWood, x, 7.85, -9.5, inside);         // 천장 돌림띠
+    box(0.05, 0.05, 30, brass, x, 7.68, -9.5, inside);
+  });
+  // 그림 액자: 악기 실루엣
+  const art = (kind, bg) => canvasOf(256, 320, (g, cw, ch) => {
+    const gr = g.createLinearGradient(0, 0, 0, ch); gr.addColorStop(0, bg[0]); gr.addColorStop(1, bg[1]); g.fillStyle = gr; g.fillRect(0, 0, cw, ch);
+    g.fillStyle = '#f5d58a'; g.globalAlpha = 0.18; g.beginPath(); g.arc(cw / 2, 120, 90, 0, 7); g.fill(); g.globalAlpha = 1;
+    g.fillStyle = '#0b0b0f'; g.strokeStyle = '#0b0b0f'; g.lineCap = 'round';
+    if (kind === 'sax') { g.lineWidth = 18; g.beginPath(); g.moveTo(150, 40); g.lineTo(150, 200); g.quadraticCurveTo(150, 250, 110, 250); g.quadraticCurveTo(80, 250, 80, 215); g.stroke(); g.beginPath(); g.arc(84, 205, 22, 0, 7); g.fill(); g.lineWidth = 8; g.beginPath(); g.moveTo(150, 40); g.lineTo(175, 22); g.stroke(); }
+    if (kind === 'bass') { g.beginPath(); g.ellipse(128, 220, 62, 70, 0, 0, 7); g.fill(); g.beginPath(); g.ellipse(128, 140, 48, 50, 0, 0, 7); g.fill(); g.fillRect(122, 20, 12, 120); g.beginPath(); g.arc(128, 18, 10, 0, 7); g.fill(); g.fillStyle = '#f5d58a'; g.fillRect(108, 200, 8, 30); g.fillRect(140, 200, 8, 30); }
+    if (kind === 'trumpet') { g.lineWidth = 14; g.beginPath(); g.moveTo(40, 170); g.lineTo(180, 170); g.stroke(); g.beginPath(); g.moveTo(180, 150); g.lineTo(230, 120); g.lineTo(230, 220); g.lineTo(180, 190); g.fill(); g.lineWidth = 8; g.strokeRect(90, 140, 60, 50); }
+    if (kind === 'piano') { g.fillRect(40, 110, 176, 120); g.fillStyle = '#f5f0e1'; g.fillRect(40, 200, 176, 30); g.fillStyle = '#0b0b0f'; for (let k = 0; k < 11; k++) if (k % 7 !== 2 && k % 7 !== 6) g.fillRect(52 + k * 15, 200, 8, 18); g.fillRect(50, 230, 10, 60); g.fillRect(196, 230, 10, 60); }
+    if (kind === 'singer') { g.beginPath(); g.arc(128, 90, 34, 0, 7); g.fill(); g.beginPath(); g.moveTo(80, 300); g.quadraticCurveTo(90, 140, 128, 130); g.quadraticCurveTo(166, 140, 176, 300); g.fill(); g.lineWidth = 6; g.beginPath(); g.moveTo(170, 300); g.lineTo(170, 120); g.stroke(); g.beginPath(); g.arc(170, 112, 10, 0, 7); g.fill(); }
+    g.font = 'italic 700 24px Outfit, sans-serif'; g.fillStyle = '#f5d58a'; g.textAlign = 'center'; g.fillText({ sax: 'Tenor Night', bass: 'Walking Bass', trumpet: 'Blue Horn', piano: 'Midnight Keys', singer: 'Velvet Voice' }[kind], cw / 2, 300);
+  });
+  const frameM = std(0x9a7a2e, { roughness: 0.3, metalness: 0.8 });
+  const hang = (x, z, kind, bg, s) => {
+    const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = -s * Math.PI / 2; inside.add(g);
+    box(1.32, 1.62, 0.06, frameM, 0, 2.9, 0.02, g);
+    add(new THREE.PlaneGeometry(1.14, 1.42), new THREE.MeshStandardMaterial({ map: art(kind, bg), roughness: 0.8, emissive: 0xffffff, emissiveMap: art(kind, bg), emissiveIntensity: 0.25 }), 0, 2.9, 0.06, g);
+    add(new THREE.CylinderGeometry(0.02, 0.02, 0.5, 8), frameM, 0, 3.86, 0.16, g).rotation.z = Math.PI / 2;   // 그림등
+    flare(0xffd59a, 1.1, x - s * 0.2, 3.8, z, inside, 0.45);
+  };
+  // 왼쪽 벽 가운데는 가사판 자리라 비워 둔다
+  hang(-13.9, -15.2, 'sax', ['#3b0d16', '#120408'], -1);
+  hang(-13.9, 2.2, 'trumpet', ['#0f1e3d', '#05080f'], -1);
+  // 오른쪽 벽은 바 뒤라 바 끝 쪽에만
+  hang(13.9, -16.2, 'bass', ['#14352f', '#04100c'], 1);
+  // 벽등
+  [-15.5, -11, -6.5, -2, 2.5].forEach((z) => [-1, 1].forEach((s) => {
+    if (s > 0 && z > -15) return;
+    const x = s * 13.85;
+    add(new THREE.CylinderGeometry(0.03, 0.03, 0.22, 8), brass, x, 2.05, z, inside);
+    add(new THREE.CylinderGeometry(0.11, 0.07, 0.18, 14, 1, true), glow(0xffd08a, { side: THREE.DoubleSide }), x - s * 0.08, 2.24, z, inside);
+    flare(0xffb35c, 1.6, x - s * 0.12, 2.26, z, inside, 0.5);
+  }));
+}
+
 export function buildWorld(scene, fxState, theme) {
   if (theme.jazz) useJazzLayout();
   const gt = glowTexture(), bt = beamTexture(), updaters = [];
@@ -309,6 +375,23 @@ export function buildWorld(scene, fxState, theme) {
   /* ───── 입구 복도 ───── */
   const inside = new THREE.Group(); scene.add(inside);
   const wallM = std(theme.wall, { roughness: 0.68 }), floorM = std(theme.floor, { roughness: 0.72, metalness: 0.08 });
+  if (theme.jazz) {
+    const wood = canvasOf(512, 512, (g, cw, ch) => {
+      g.fillStyle = '#3e2412'; g.fillRect(0, 0, cw, ch);
+      const L = 128, W = 32, tones = ['#6b3f1f', '#5c3419', '#7a4823', '#4f2c15', '#664020'];
+      for (let row = -4; row < 20; row++) for (let col = -2; col < 6; col++) {
+        const ox = col * L, oy = row * W * 2 + col * L;
+        for (const flip of [0, 1]) {
+          g.save(); g.translate(ox + (flip ? L / 2 : 0), oy % (ch * 2) - ch / 2); g.rotate(flip ? -Math.PI / 4 : Math.PI / 4);
+          g.fillStyle = tones[(row * 7 + col * 3 + flip) % 5]; g.fillRect(0, 0, L * 0.7, W - 3);
+          g.fillStyle = 'rgba(0,0,0,.18)'; for (let k = 4; k < W - 4; k += 7) g.fillRect(4, k, L * 0.7 - 8, 1);
+          g.restore();
+        }
+      }
+    });
+    wood.wrapS = wood.wrapT = THREE.RepeatWrapping; wood.repeat.set(14, 14);
+    floorM.map = wood; floorM.color.set(0xa08670); floorM.roughness = 0.45;
+  }
   box(3.2, 0.1, 5.4, floorM, 0, -0.05, 7.4, inside);
   box(3.2, 0.1, 5.4, wallM, 0, 3.55, 7.4, inside);
   [-1, 1].forEach((s) => box(0.2, 3.6, 5.4, wallM, s * 1.7, 1.8, 7.4, inside));
@@ -324,8 +407,10 @@ export function buildWorld(scene, fxState, theme) {
   // 벽 네온
   const neonList = [];
   const strip = (w, h, d, x, y, z) => { const m = box(w, h, d, glow(0xffffff), x, y, z, inside); neonList.push(m); return m; };
-  for (let y of [2.4, 4.9]) { strip(0.05, 0.06, 25, -13.96, y, -6); strip(0.05, 0.06, 25, 13.96, y, -6); }
-  strip(12.15, 0.06, 0.05, -7.9, 5.9, 4.82); strip(12.15, 0.06, 0.05, 7.9, 5.9, 4.82);
+  if (!theme.jazz) {
+    for (let y of [2.4, 4.9]) { strip(0.05, 0.06, 25, -13.96, y, -6); strip(0.05, 0.06, 25, 13.96, y, -6); }
+    strip(12.15, 0.06, 0.05, -7.9, 5.9, 4.82); strip(12.15, 0.06, 0.05, 7.9, 5.9, 4.82);
+  } else buildJazzRoom(inside, flare);
   buildBackWall(inside, theme, neonList, updaters, flare);
 
   // 무대
@@ -461,8 +546,20 @@ export function buildWorld(scene, fxState, theme) {
     });
     }
   }
+  // 재즈 바: 스피커 대신 무대 양옆 벨벳 커튼과 위 장식막
+  if (theme.jazz) {
+    const velvet = std(0x5a0d18, { roughness: 0.9 }), gold = std(0xb08d3a, { roughness: 0.35, metalness: 0.8 });
+    [-1, 1].forEach((s) => {
+      for (let k = 0; k < 7; k++) {
+        const f = add(new THREE.CylinderGeometry(0.2, 0.26, 7.6, 10), velvet, s * (10.4 + k * 0.32), 4.3, -18.4 - (k % 2) * 0.12, inside); f.scale.z = 0.55;
+      }
+      add(new THREE.TorusGeometry(0.24, 0.05, 8, 18), gold, s * 10.6, 2.6, -18.1, inside);
+    });
+    for (let k = 0; k < 40; k++) { const f = add(new THREE.CylinderGeometry(0.2, 0.2, 1.1, 8), velvet, -12.4 + k * 0.64, 7.45, -18.3, inside); f.scale.z = 0.5; }
+    box(25, 0.08, 0.1, gold, 0, 6.9, -18.0, inside);
+  }
   // 스피커
-  [-1, 1].forEach((s) => {
+  if (!theme.jazz) [-1, 1].forEach((s) => {
     for (let i = 0; i < 3; i++) {
       box(1.7, 1.45, 1.1, std(0x07070b, { roughness: 0.5 }), s * 8.5, 1.9 + i * 1.5, -19, inside);
       const cone = add(new THREE.CylinderGeometry(0.48, 0.48, 0.04, 24), std(0x1b1b24), s * 8.5, 1.9 + i * 1.5, -18.44, inside); cone.rotation.x = Math.PI / 2;
@@ -484,10 +581,10 @@ export function buildWorld(scene, fxState, theme) {
 
   // 트러스와 무빙 라이트 빔
   const trussM = std(0x25252f, { roughness: 0.5, metalness: 0.7 });
-  [-14, -8, -2].forEach((z) => box(23, 0.2, 0.2, trussM, 0, 7.3, z, inside));
+  if (!theme.jazz) [-14, -8, -2].forEach((z) => box(23, 0.2, 0.2, trussM, 0, 7.3, z, inside));
   const coneG = new THREE.ConeGeometry(0.72, 8.6, 20, 1, true); coneG.translate(0, -4.3, 0);
   const beams = [];
-  for (const z of [-14, -8, -2]) for (const x of [-9, -5.4, -1.8, 1.8, 5.4, 9]) {
+  for (const z of theme.jazz ? [] : [-14, -8, -2]) for (const x of [-9, -5.4, -1.8, 1.8, 5.4, 9]) {
     if (z === -2 && Math.abs(x) > 6) continue;
     const pivot = new THREE.Group(); pivot.position.set(x, 7.15, z); inside.add(pivot);
     const mat = new THREE.MeshBasicMaterial({ map: bt, transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false, toneMapped: false, fog: false });
@@ -539,6 +636,11 @@ export function buildWorld(scene, fxState, theme) {
       }
     });
     const tableLight = new THREE.PointLight(0xffb070, 18, 26, 1.4); tableLight.position.set(-2, 3.2, -6); scene.add(tableLight);
+    // 탁자 위 펜던트 등
+    const cord = inst(new THREE.CylinderGeometry(0.006, 0.006, 5.2, 4), std(0x111111), nT);
+    const shade = inst(new THREE.CylinderGeometry(0.07, 0.26, 0.24, 18, 1, true), std(0x8a6a24, { roughness: 0.3, metalness: 0.85, side: THREE.DoubleSide }), nT);
+    const bulb = inst(new THREE.SphereGeometry(0.06, 10, 8), glow(0xffd59a), nT);
+    TABLES.forEach((T, i) => { put(cord, i, T.x, 5.4, T.z); put(shade, i, T.x, 2.68, T.z); put(bulb, i, T.x, 2.6, T.z); flare(0xffc070, 1.5, T.x, 2.52, T.z, inside, 0.35); });
   }
   // 스탠딩 테이블
   const topM = std(0x20202a, { roughness: 0.48, metalness: 0.2 }), legM = std(0x303038, { roughness: 0.3, metalness: 0.8 });
@@ -564,11 +666,15 @@ export function buildWorld(scene, fxState, theme) {
   }
 
   // 바
-  const barM = std(0x12121a, { roughness: 0.2, metalness: 0.45 });
+  const barM = theme.jazz ? std(0x3b1f0e, { roughness: 0.35 }) : std(0x12121a, { roughness: 0.2, metalness: 0.45 });
   box(1.1, 1.12, 19, barM, 11.6, 0.56, -5.5, inside);
-  const barGlow = strip(0.05, 0.05, 19, 11.03, 0.34, -5.5); void barGlow;
+  if (theme.jazz) {
+    box(1.25, 0.06, 19.2, std(0x1a0d06, { roughness: 0.15, metalness: 0.2 }), 11.6, 1.15, -5.5, inside);   // 상판
+    add(new THREE.CylinderGeometry(0.03, 0.03, 19, 10), std(0xb08d3a, { roughness: 0.25, metalness: 0.9 }), 10.92, 0.22, -5.5, inside).rotation.x = Math.PI / 2;   // 발걸이
+    box(0.03, 2.6, 18.6, std(0x8a7a6a, { roughness: 0.05, metalness: 1 }), 13.84, 3.0, -5.5, inside);   // 뒤 거울
+  } else { const barGlow = strip(0.05, 0.05, 19, 11.03, 0.34, -5.5); void barGlow; }
   box(0.24, 3.4, 19, std(0x0a0a10), 13.9, 3.1, -5.5, inside);
-  const bottleColors = [0xfbbf24, 0x22d3ee, 0xf472b6, 0x34d399, 0xa78bfa, 0xfb923c];
+  const bottleColors = theme.jazz ? [0xb45309, 0x92400e, 0xd97706, 0x3f6212, 0x7c2d12, 0xfbbf24] : [0xfbbf24, 0x22d3ee, 0xf472b6, 0x34d399, 0xa78bfa, 0xfb923c];
   const bottleSpots = [];
   for (const y of [2.1, 2.95, 3.8]) {
     box(0.36, 0.04, 18, glow(0xfff1d6), 13.66, y - 0.21, -5.5, inside);
@@ -791,7 +897,7 @@ export function buildWorld(scene, fxState, theme) {
 
     // 색 조명
     washes.forEach((p, i) => {
-      p.color.setHSL(i % 2 ? h1 : h2, 0.9, 0.58);
+      if (theme.jazz) p.color.set(i % 2 ? 0xffa860 : 0x6a7cff); else p.color.setHSL(i % 2 ? h1 : h2, 0.9, 0.58);
       p.intensity = (i < 3 ? 40 + e * 56 : 26) * (i < 3 ? 0.66 + clock.kick * 0.5 : 1) * (theme.jazz ? 0.5 : 1);
       if (i < 3) { p.position.x += Math.sin(t * 0.9 + i * 2) * dt * 1.4; p.position.z += Math.cos(t * 0.7 + i) * dt * 1.2; }
     });
@@ -800,8 +906,9 @@ export function buildWorld(scene, fxState, theme) {
     kickLight.intensity = fx && !theme.band ? (name === 'drop' ? 145 : 26) * flash : 0;
 
     hazes.forEach((h, i) => {
+      if (theme.jazz) { h.s.material.color.setHSL(0.08, 0.35, 0.62); h.s.material.opacity = fx ? 0.035 : 0.02; } else {
       h.s.material.color.setHSL(i % 2 ? h1 : h2, 0.8, 0.6);
-      h.s.material.opacity = fx ? 0.055 + e * 0.05 : 0.035;
+      h.s.material.opacity = fx ? 0.055 + e * 0.05 : 0.035; }
       h.s.position.x = h.x + Math.sin(t * 0.08 + h.seed) * 2.4;
     });
     tableRings.forEach((r, i) => r.material.color.setHSL((h2 + i * 0.03) % 1, 0.9, 0.6));
