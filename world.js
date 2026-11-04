@@ -318,6 +318,10 @@ export function buildWorld(scene, fxState, theme) {
       const c = add(new THREE.CylinderGeometry(0.26, 0.26, 0.012, 22), brass, x, y, 0.1, kit); c.rotation.z = x < 0 ? 0.14 : -0.14;
       updaters.push((dt, t, clock) => { c.rotation.x = Math.sin(clock.beat * Math.PI * 2) * 0.05; });
     });
+    // 드럼 의자
+    add(new THREE.CylinderGeometry(0.19, 0.17, 0.06, 18), std(0x1c1410, { roughness: 0.6 }), 0, 1.49 + 0.47, -21.6, inside);
+    add(new THREE.CylinderGeometry(0.025, 0.025, 0.44, 8), chrome, 0, 1.49 + 0.22, -21.6, inside);
+    add(new THREE.CylinderGeometry(0.2, 0.2, 0.02, 14), chrome, 0, 1.5, -21.6, inside);
     // 앰프
     [[-5.2, -21.6], [5.2, -21.6], [-2.8, -21.8], [2.8, -21.8]].forEach(([x, z]) => {
       box(1.2, 1.1, 0.5, std(0x1c1410, { roughness: 0.7 }), x, 1.7, z, inside);
@@ -505,8 +509,8 @@ export function buildWorld(scene, fxState, theme) {
     for (let y = 170; y >= 70; y -= 18) { bulb(158, y, n++); }
     led.textAlign = 'center'; led.textBaseline = 'middle';
     led.shadowColor = '#ff9d2e'; led.shadowBlur = 18; led.fillStyle = '#ffe9b8';
-    led.font = '900 92px Pretendard, "Malgun Gothic", sans-serif'; led.fillText('현수', W2 / 2, 106);
-    led.font = '700 22px Pretendard, "Malgun Gothic", sans-serif'; led.fillText('7080 · 그때 그 노래', W2 / 2, 162);
+    led.font = '900 76px Pretendard, "Malgun Gothic", sans-serif'; led.fillText('현수의 7080', W2 / 2, 110);
+    led.font = '700 22px Pretendard, "Malgun Gothic", sans-serif'; led.fillText('그때 그 노래', W2 / 2, 164);
     led.shadowBlur = 0;
     ledT.needsUpdate = true;
   }

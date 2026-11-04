@@ -1,7 +1,7 @@
 import * as THREE from './vendor/three.min.js';
 import { Edm, TRACKS } from './edm.js?v=6';
-import { makePerson, updatePerson, goTo, say, jump, setWardrobe } from './people.js?v=5';
-import { buildWorld, ROOM, FLOOR, TABLES, BAR_SPOTS } from './world.js?v=7';
+import { makePerson, updatePerson, goTo, say, jump, setWardrobe } from './people.js?v=6';
+import { buildWorld, ROOM, FLOOR, TABLES, BAR_SPOTS } from './world.js?v=8';
 import { VENUES } from './venues.js?v=2';
 import { listTracks, addTrack, putTrack, removeTrack, isAudioFile, titleOf, analyze } from './mylist.js?v=1';
 
@@ -86,6 +86,10 @@ const tray = new THREE.Group(); scene.add(tray);
 tray.add(new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.015, 24), new THREE.MeshStandardMaterial({ color: 0xc0c4cc, roughness: 0.25, metalness: 0.8 })));
 tray.visible = false;
 const performers = [];
+let drummerSticks = [], drummerRef = null;
+// 박자 안에서 스틱이 들린 정도: 0이면 북을 친 순간 [왼손, 오른손]
+const drumLift = (b) => { const r = (b * 2) % 1, l = ((b + 1) % 2) / 2; return [Math.sin(Math.PI * Math.min(1, l * 1.4)) * (l < 0.72 ? 1 : 0), Math.sin(Math.PI * r)]; };
+const stickA = new THREE.Vector3(), stickB = new THREE.Vector3(), stickUp = new THREE.Vector3(0, 1, 0), stickQ = new THREE.Quaternion();
 const STAGE_Y = 1.15;
 function performer(look, x, z, armPose, y0 = STAGE_Y) {
   const p = spawn({ skirt: false, brick: true, ...look }); place(p, x, z, 0); p.isStaff = true; p.y0 = y0; p.armPose = armPose; performers.push(p);
@@ -96,20 +100,27 @@ if (!venue.band) {
 } else {
   const wood = new THREE.MeshStandardMaterial({ color: 0xb4632a, roughness: 0.35 }), dark = new THREE.MeshStandardMaterial({ color: 0x20140c, roughness: 0.4 }), red = new THREE.MeshStandardMaterial({ color: 0x9f1239, roughness: 0.3 });
   const guitar = (p, body) => {
-    const g = new THREE.Group(); g.position.set(0, 0.2, 0.15); g.rotation.z = 0.5;
+    const g = new THREE.Group(); g.position.set(0, 0.2, 0.15); g.rotation.z = -0.42;   // 몸통은 오른쪽 아래, 넥은 왼쪽 위
     const b = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.17, 0.07, 18), body); b.rotation.x = Math.PI / 2; b.position.x = 0.12; b.scale.set(1.25, 1, 1); g.add(b);
     const n = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.04, 0.025), dark); n.position.x = -0.3; g.add(n);
     const h = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.06, 0.025), dark); h.position.x = -0.61; g.add(h);
     p.torso.add(g);
   };
-  const strum = (b) => { const k = Math.sin(b * Math.PI * 2); return [[-1.02, 0.62, -0.1, -0.72], [-0.5 + k * 0.1, 0.24, -0.42, -1.42 + k * 0.28]]; };
+  const strum = (b) => { const k = Math.sin(b * Math.PI * 2); return [[-0.45, 0.35, 0.6, -2.0], [0.02 + k * 0.08, 0.35, -0.8, -1.4 + k * 0.22]]; };
   const singer = performer({ style: 1, top: new THREE.MeshStandardMaterial({ color: 0xf5f0e1, roughness: 0.55 }), height: 1 }, 0, -18.45, (b) => { const k = Math.sin(b * Math.PI); return [[-1.3 + k * 0.35, 0.55, 0, -0.45], [-0.95, 0.28, -0.58, -2.05]]; });
   const mic = new THREE.Mesh(new THREE.CapsuleGeometry(0.025, 0.1, 4, 8), dark); mic.position.set(0, -0.09, 0.02); singer.arms[1].h.add(mic);
   singer.danceStyle = 0;
   guitar(performer({ style: 0, height: 1 }, 3.3, -19.4, strum), wood);
   guitar(performer({ style: 3, height: 1 }, -3.3, -19.4, strum), red);
   performer({ style: 0, height: 1 }, -5.7, -18.75, (b, t) => [[-1.08, 0.16, -0.12, -0.55 + Math.sin(t * 9) * 0.1], [-1.08, 0.16, -0.12, -0.55 + Math.sin(t * 9 + 2) * 0.1]]);
-  performer({ style: 0, height: 1 }, 0, -21.85, (b) => { const k = Math.abs(Math.sin(b * Math.PI * 2)), l = Math.abs(Math.cos(b * Math.PI * 2)); return [[-1.15 - l * 0.42, 0.28, -0.28, -1.05], [-1.15 - k * 0.42, 0.28, -0.28, -1.05]]; }, 1.49);
+  const drummer = performer({ style: 0, height: 1 }, 0, -21.6, (b) => { const [l, r] = drumLift(b); return [[-0.1 - l * 0.55, 0.35, -0.35, -1.75 + l * 0.5], [-0.1 - r * 0.55, 0.35, -0.35, -1.75 + r * 0.5]]; }, 1.49);
+  drummer.sit = true;
+  // 스틱: 손에서 북까지. 오른손은 8분음표, 왼손은 2·4박
+  const stickM = new THREE.MeshStandardMaterial({ color: 0xe8cfa0, roughness: 0.5 });
+  const stickG = new THREE.CylinderGeometry(0.009, 0.013, 1, 8); stickG.translate(0, 0.5, 0);
+  const DRUM_TIPS = { [-1]: new THREE.Vector3(-0.42, 2.1, -21.05), [1]: new THREE.Vector3(0.42, 2.1, -21.05) };
+  drummerSticks = [-1, 1].map((s) => { const m = new THREE.Mesh(stickG, stickM); scene.add(m); return { s, m, tip: DRUM_TIPS[s] }; });
+  drummerRef = drummer;
 }
 [[12.75, -9], [12.75, -1.5]].forEach(([x, z]) => { const b = spawn({ top: new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.6 }), skirt: false }); place(b, x, z, -Math.PI / 2); b.isStaff = true; b.talkTo = 0.6; });
 
@@ -934,6 +945,16 @@ function frame(nowMs) {
     }
   }
   for (const p of everyone) if (p.cup) holdCup(p, p.cup);
+  if (drummerRef) {
+    const lift = drumLift(clock.beat + drummerRef.beatOff);
+    for (const st of drummerSticks) {
+      drummerRef.arms[st.s].h.localToWorld(stickA.set(0, -0.03, 0.02));
+      stickB.copy(st.tip); stickB.y += lift[st.s < 0 ? 0 : 1] * 0.32; stickB.z -= lift[st.s < 0 ? 0 : 1] * 0.1;
+      const d = stickB.sub(stickA), len = d.length();
+      stickQ.setFromUnitVectors(stickUp, d.normalize());
+      st.m.quaternion.copy(stickQ); st.m.position.copy(stickA).addScaledVector(d, -0.06); st.m.scale.set(1, len + 0.06, 1);
+    }
+  }
   if (tray.visible) { waiter.arms[1].h.getWorldPosition(tray.position); tray.position.y += 0.02; }
   if (phase === 'room' && (clock.section.name === 'drop')) crowdBeat(clock); else crowdBeat.last = -1;
   if (clock.section.name !== 'drop') dropSeen = -1;

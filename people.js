@@ -301,8 +301,13 @@ export function updatePerson(p, dt, t, clock, collide) {
     leg.f.rotation.x = -(tx - sw - step * 1.7 - tuck + kx + lift + step * 3 + tuck * 1.4) * 0.9;
   };
   legPose(-1, stepR * k); legPose(1, stepL * k);
+  // 앉기: 허벅지는 앞으로, 정강이는 아래로, 무릎은 살짝 벌린다
+  if (p.sit) {
+    [-1, 1].forEach((s) => { const leg = p.legs[s]; leg.t.rotation.set(-1.45, 0, s * 0.3); leg.k.rotation.x = 1.5; leg.f.rotation.x = -0.05; });
+    hipX = 0; hipY = SHIN + 0.08 - HIP_Y; twist *= 0.3; rollZ *= 0.3; lean = 0.12;
+  }
 
-  p.hips.position.set(hipX * k, HIP_Y + hipY * k + Math.sin(p.walkPhase * 2) * 0.016 * p.walk + Math.sin(t * 1.2 + p.phase) * 0.003, 0);
+  p.hips.position.set(hipX * k, HIP_Y + hipY * (p.sit ? 1 : k) + Math.sin(p.walkPhase * 2) * 0.016 * p.walk + Math.sin(t * 1.2 + p.phase) * 0.003, 0);
   p.hips.rotation.y = twist * k;
   p.hips.rotation.z = rollZ * k * 0.5;
   p.torso.rotation.set(lean * k + 0.05 * p.walk + 0.02 * Math.sin(t * 0.8 + p.phase), -twist * k * 0.5, -rollZ * k);
