@@ -677,8 +677,13 @@ function sendDrink(T, d) {
           say(g[0], pick(venue.band ? [`${T.i + 1}번 테이블, 잘 마실게요!`, '고맙습니다! 위하여!'] : [`${T.i + 1}번 테이블, 땡큐!`, '잘 마실게요! 건배!']), 2.4);
           g.forEach((n, i) => { n.waveTo = 1; later(1.4, () => { n.waveTo = 0; later(0.3 + i * 0.2, () => { n.sipTo = 1; later(1.5, () => { n.sipTo = 0; }); }); }); });
           toast(`${T.i + 1}번 테이블에서 고맙다고 손을 흔듭니다`, 2.6);
+          // 나도 그 테이블을 보며 같이 손을 흔든다
+          if (!player.target) {
+            player.yawTo = Math.atan2(T.x - player.x, T.z - player.z);
+            later(0.35, () => { player.waveTo = 1; later(1.6, () => { player.waveTo = 0; }); });
+          }
           say(player, venue.band ? '위하여!' : '건배!', 1.4);
-          if (myDrink.cup && myDrink.level > 0 && inTableReach() && !player.sipTo) later(1.6, sip);
+          if (myDrink.cup && myDrink.level > 0 && inTableReach() && !player.sipTo) later(2.1, sip);
         });
         later(2, () => { sending = false; renderUi(); });
         goTo(waiter, WAITER_HOME[0], WAITER_HOME[1], () => { waiter.yawTo = -Math.PI / 2; });
