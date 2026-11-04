@@ -3,7 +3,7 @@ import { Edm, TRACKS } from './edm.js?v=7';
 import { makePerson, updatePerson, goTo, say, jump, setWardrobe } from './people.js?v=9';
 import { buildWorld, ROOM, FLOOR, TABLES, BAR_SPOTS } from './world.js?v=13';
 import { VENUES } from './venues.js?v=4';
-import { listTracks, addTrack, putTrack, removeTrack, isAudioFile, titleOf, analyze, isLrcFile, readText, lyricLines, id3Lyrics } from './mylist.js?v=2';
+import { listTracks, addTrack, putTrack, removeTrack, isAudioFile, titleOf, analyze, isLrcFile, readText, decodeText, lyricLines, id3Lyrics } from './mylist.js?v=2';
 
 const $ = (id) => document.getElementById(id);
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
@@ -1284,8 +1284,18 @@ $('volume').oninput = (e) => { settings.volume = +e.target.value; edm.setVolume(
 $('lowFx').onchange = (e) => { settings.lowFx = e.target.checked; fxState.full = !settings.lowFx; saveSettings(); };
 
 /* ───── myList: 내 음원 (무대마다 따로) ───── */
-let saved = [], temp = [], nowFile = null, nowUrl = null, armedDelete = null, tempSeq = 0;
-const myItems = () => [...saved, ...temp];
+let saved = [], temp = [], shared = [], nowFile = null, nowUrl = null, armedDelete = null, tempSeq = 0;
+const myItems = () => [...shared, ...saved, ...temp];
+/* 공용 곡: 저장소 music/ 폴더의 곡을 모두가 함께 듣는다 (목록은 music/tracks.json) */
+async function loadShared() {
+  try {
+    const r = await fetch(`music/tracks.json?t=${Date.now()}`, { cache: 'no-store' });
+    if (!r.ok) return;
+    const list = (await r.json()).tracks || [];
+    shared = list.filter((x) => (x.venue || 'live7080') === venue.id).map((x) => ({ shared: true, title: x.title, url: `music/${x.file}`, size: x.size || 0, lrc: x.lyrics ? `music/${x.lyrics}` : null, lyrics: null, analysis: null }));
+    renderMyList();
+  } catch { /* 목록이 없으면 공용 곡 없이 */ }
+}
 /* 가사(자막) */
 let lyricsOn = localStorage.getItem('clubpulse-lyrics') !== 'off', lyr = null, lyrIdx = -2, lyrItem = null;
 /* 가사는 실내 왼쪽 벽 전광판에만 띄운다 */
@@ -1328,7 +1338,7 @@ function updateLyrics() {
   drawBoard(now || '♪', next);
 }
 async function findId3(it) {
-  if (it.lyrics || it.id3Checked || !/mpeg|mp3/i.test(it.type || '') && !/\.mp3$/i.test(it.name)) return;
+  if (it.shared || it.lyrics || it.id3Checked || !/mpeg|mp3/i.test(it.type || '') && !/\.mp3$/i.test(it.name)) return;
   it.id3Checked = true;
   const text = await id3Lyrics(it.blob);
   if (!text || it.lyrics) return;
@@ -1357,7 +1367,7 @@ async function refreshSaved() {
   // 무대마다 목록이 따로다. 예전에 저장한 곡(무대 표시 없음)은 7080 곡이다
   try { saved = (await listTracks()).filter((x) => (x.venue || 'live7080') === venue.id); } catch { saved = []; toast('이 브라우저에서는 myList를 쓸 수 없습니다'); }
   // 재생 중인 곡은 같은 항목으로 다시 잇는다
-  if (nowFile && !nowFile.temp) nowFile = saved.find((x) => x.id === nowFile.id) || nowFile;
+  if (nowFile && !nowFile.temp && !nowFile.shared) nowFile = saved.find((x) => x.id === nowFile.id) || nowFile;
 }
 function renderMyList() {
   const box = $('myListItems'); box.textContent = '';
@@ -1371,11 +1381,12 @@ function renderMyList() {
     const st = document.createElement('strong'); st.textContent = it.title;
     const sm = document.createElement('small');
     const dur = it.analysis?.duration;
-    sm.textContent = [it.temp ? '저장되지 않음' : 'myList', dur ? fmtTime(dur) : null, fmtSize(it.size), it.analysis ? `${Math.round(it.analysis.bpm)} BPM` : null].filter(Boolean).join(' · ');
+    sm.textContent = [it.shared ? '공용 곡' : it.temp ? '저장되지 않음' : 'myList', dur ? fmtTime(dur) : null, fmtSize(it.size), it.analysis ? `${Math.round(it.analysis.bpm)} BPM` : null].filter(Boolean).join(' · ');
     text.append(st, sm); play.append(icon, text);
     play.setAttribute('aria-label', `${it.title} ${nowFile === it && !paused ? '일시정지' : '재생'}`);
     play.onclick = () => { if (nowFile === it) { edm.togglePause(); renderMyList(); } else playItem(it); };
     row.append(play);
+    if (it.shared) { if (it.lrc) { const tag = document.createElement('span'); tag.className = 'mlSmall has'; tag.textContent = '가사 ✓'; row.append(tag); } box.append(row); return; }
     const ly = document.createElement('button'); ly.className = `mlSmall${it.lyrics ? ' has' : ''}`; ly.textContent = it.lyrics ? '가사 ✓' : '가사';
     ly.setAttribute('aria-label', `${it.title} 가사 ${it.lyrics ? '고치기' : '넣기'}`); ly.onclick = () => openLyrics(it);
     row.append(ly);
@@ -1400,21 +1411,22 @@ function backToBand() {
 }
 function playItem(it) {
   if (nowUrl) URL.revokeObjectURL(nowUrl);
-  nowUrl = URL.createObjectURL(it.blob); nowFile = it;
-  edm.playFile(nowUrl, it.analysis).catch((err) => {
+  nowUrl = it.shared ? null : URL.createObjectURL(it.blob); nowFile = it;
+  if (it.shared && it.lrc && it.lyrics == null) fetch(it.lrc).then((r) => (r.ok ? r.arrayBuffer() : null)).then((b) => { it.lyrics = b ? decodeText(new Uint8Array(b)) : ''; if (nowFile === it) setLyrics(it); renderMyList(); }).catch(() => { it.lyrics = ''; });
+  edm.playFile(it.shared ? it.url : nowUrl, it.analysis).catch((err) => {
     if (err?.name === 'NotAllowedError') toast('재생 버튼을 한 번 더 눌러 주세요');
   });
   $('nowName').textContent = it.title; toast(it.title, 2.2);
   setLyrics(it); findId3(it);
   renderMyList();
-  if (!it.analysis && it.size < 80 * 1048576) analyzeItem(it);
+  if (!it.analysis && (it.shared || it.size < 80 * 1048576)) analyzeItem(it);
 }
 async function analyzeItem(it) {
   try {
-    const data = await it.blob.arrayBuffer(), buf = await edm.ctx.decodeAudioData(data);
+    const data = it.shared ? await (await fetch(it.url)).arrayBuffer() : await it.blob.arrayBuffer(), buf = await edm.ctx.decodeAudioData(data);
     it.analysis = analyze(buf);
     if (nowFile === it) edm.analysis = it.analysis;
-    if (!it.temp) await putTrack(it);
+    if (!it.temp && !it.shared) await putTrack(it);
     renderMyList();
   } catch { /* 분석하지 못해도 재생은 계속된다 (120 BPM으로 움직인다) */ }
 }
@@ -1503,6 +1515,7 @@ async function addFiles(files, keep) {
   };
   edm.onFileError = () => { toast('이 형식은 재생할 수 없습니다'); backToBand(); };
   await refreshSaved();
+  loadShared();
 }
 
 /* 나가기: 확인 뒤 화면을 어둡게 하고 줄 고르는 처음 화면으로 돌아간다 */
