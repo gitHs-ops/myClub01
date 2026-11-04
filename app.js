@@ -78,6 +78,39 @@ dest.rotation.x = -Math.PI / 2; dest.position.y = 0.045; dest.visible = false; s
 
 const bouncer = spawn({ style: 0, top: new THREE.MeshStandardMaterial({ color: 0x0b0b10, roughness: 0.6 }), bottom: new THREE.MeshStandardMaterial({ color: 0x0b0b10, roughness: 0.6 }), skirt: false, height: 1.1 });
 place(bouncer, -1.75, 11.15, 0.8); bouncer.crossTo = 1; bouncer.isStaff = true;
+/* 기도: 마동석 스타일. 떡 벌어진 어깨, 굵은 팔다리, 짧은 머리, 짙은 눈썹과 수염 */
+{
+  const b = bouncer, meshes = (g) => g.children.filter((c) => c.isMesh);
+  b.root.scale.setScalar(1.12);
+  meshes(b.torso).forEach((m) => { if (m.position.y > 0.2 && m.position.y < 0.3) m.scale.set(1.5, 1.08, 1.15); });   // 가슴
+  meshes(b.torso).forEach((m) => { if (m.position.y > 0.5 && m.position.y < 0.6) m.scale.set(1.7, 1, 1.7); });      // 목
+  meshes(b.hips).forEach((m) => m.scale.set(1.35, 1.1, 1.3));
+  [-1, 1].forEach((s) => {
+    const arm = b.arms[s]; arm.a.position.x = s * 0.3;
+    meshes(arm.a).forEach((m) => m.scale.set(1.75, 1, 1.75));
+    meshes(arm.e).forEach((m) => m.scale.set(1.6, 1, 1.6));
+    meshes(arm.h).forEach((m) => m.scale.setScalar(1.35));
+    const leg = b.legs[s]; leg.t.position.x = s * 0.12;
+    meshes(leg.t).forEach((m) => m.scale.set(1.4, 1, 1.4));
+    meshes(leg.k).forEach((m) => m.scale.set(1.3, 1, 1.3));
+  });
+  const head = b.head, dark = new THREE.MeshStandardMaterial({ color: 0x15110f, roughness: 0.9 });
+  head.children.slice(3).forEach((c) => head.remove(c));   // 원래 머리카락은 빼고
+  head.children[0].scale.set(1.1, 1, 1.05);   // 넓은 얼굴
+  head.scale.setScalar(0.95);
+  // 짧은 머리
+  const hair = new THREE.Mesh(new THREE.SphereGeometry(0.152, 20, 10, 0, Math.PI * 2, 0, 1.25), dark); hair.scale.set(1.08, 0.9, 1.04); hair.position.set(0, 0.02, -0.01); hair.rotation.x = -0.25; head.add(hair);
+  // 수염: 턱과 입 주변
+  const beard = new THREE.Mesh(new THREE.SphereGeometry(0.149, 20, 10, Math.PI / 2 - 1.1, 2.2, 1.95, 0.95), new THREE.MeshStandardMaterial({ color: 0x2b2420, roughness: 1, transparent: true, opacity: 0.82 }));
+  beard.scale.set(1.08, 1, 1.05); head.add(beard);
+  const mus = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.016, 0.02), dark); mus.position.set(0, -0.045, 0.142); head.add(mus);
+  // 짙은 눈썹, 약간 찌푸린 표정
+  // 굵은 팔에 맞춘 팔짱 (팔꿈치가 가슴 밖에 있게)
+  const REST = [0, 0.25, 0, -0.2], CROSS_R = [-1.01, -0.43, -0.98, -1.21], CROSS_L = [-1.14, -0.55, -1.0, -1.32];
+  const mix = (p, q, k) => p.map((v, i) => v + (q[i] - v) * k);
+  b.armPose = () => [mix(REST, CROSS_L, b.cross), mix(REST, CROSS_R, b.cross)];
+  [-1, 1].forEach((s) => { const e = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.018, 0.02), dark); e.position.set(s * 0.055, 0.045, 0.135); e.rotation.z = s * 0.25; head.add(e); });
+}
 /* 웨이터: 다른 테이블로 보낸 술을 쟁반에 받쳐 가져간다 */
 const WAITER_HOME = [9.4, 3.2];
 const waiter = spawn({ style: 0, top: new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.6 }), bottom: new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.6 }), skirt: false, height: 1.02 });
@@ -1031,4 +1064,4 @@ phase = 'queue'; setupQueue(); setStep(1); renderUi();
 camSet(0.82, 1.46, 8.2, 2);
 
 // 시험용 접근점
-window.club = { edm, player, npcs, waiter, tray, TABLES, everyone, performers, renderer, scene, camera, buddy: () => buddy, state: () => ({ phase, step, grooving, grooveBeats, hi5, mingling: mingling.length, sips: myDrink.sips, x: player.x, z: player.z, queue: queue.indexOf(player) }), clockNow: () => edm.clock() };
+window.club = { edm, bouncer, player, npcs, waiter, tray, TABLES, everyone, performers, renderer, scene, camera, buddy: () => buddy, state: () => ({ phase, step, grooving, grooveBeats, hi5, mingling: mingling.length, sips: myDrink.sips, x: player.x, z: player.z, queue: queue.indexOf(player) }), clockNow: () => edm.clock() };
