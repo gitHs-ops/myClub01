@@ -85,7 +85,7 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xdfe7ef); scene.fog = new THREE.Fog(0xdfe7ef, 16, 34);
-const camera = new THREE.PerspectiveCamera(46, 1, 0.1, 80);
+const camera = new THREE.PerspectiveCamera(46, 1, 0.1, 900);
 const resize = () => { renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; camera.fov = camera.aspect < 1 ? 62 : 44; camera.updateProjectionMatrix(); };
 addEventListener('resize', resize); resize();
 
@@ -100,11 +100,118 @@ const RW = 18, RD = 14;   // 방 크기
 const M = { rubber: std(0x30353d, { roughness: 0.95 }), wood: std(0xc8a27a, { roughness: 0.7 }), wall: std(0xeef1f5, { roughness: 0.9 }), teal: std(0x0d9488, { roughness: 0.5 }), dark: std(0x1f2937, { roughness: 0.45 }), steel: std(0xb6bec9, { roughness: 0.25, metalness: 0.85 }), black: std(0x111317, { roughness: 0.5 }), mat: std(0x14b8a6, { roughness: 0.85 }), mat2: std(0x6366f1, { roughness: 0.85 }), red: std(0xdc2626, { roughness: 0.45 }), mirror: std(0xcfd8e3, { roughness: 0.04, metalness: 0.92 }) };
 box(RW, 0.1, RD, M.rubber, 0, -0.05, 0);
 box(7.2, 0.02, 5.2, M.wood, 0, 0.01, 0.6);                                    // PT 존 원목 바닥
-box(RW, 5, 0.2, M.wall, 0, 2.5, -RD / 2); box(0.2, 5, RD, M.wall, -RW / 2, 2.5, 0); box(0.2, 5, RD, M.wall, RW / 2, 2.5, 0);
-box(RW, 0.35, 0.22, M.teal, 0, 0.6, -RD / 2 + 0.02); box(0.22, 0.35, RD, M.teal, -RW / 2 + 0.02, 0.6, 0); box(0.22, 0.35, RD, M.teal, RW / 2 - 0.02, 0.6, 0);
+const frontWall = new THREE.Group(); scene.add(frontWall);   // 전면 벽: 거울 모드에서만 보인다
+box(RW, 5, 0.2, M.wall, 0, 2.5, -RD / 2, frontWall); box(0.2, 5, RD, M.wall, -RW / 2, 2.5, 0); box(0.2, 5, RD, M.wall, RW / 2, 2.5, 0);
+box(RW, 0.35, 0.22, M.teal, 0, 0.6, -RD / 2 + 0.02, frontWall); box(0.22, 0.35, RD, M.teal, -RW / 2 + 0.02, 0.6, 0); box(0.22, 0.35, RD, M.teal, RW / 2 - 0.02, 0.6, 0);
 // 거울 벽
-box(9, 2.4, 0.05, M.mirror, 0, 1.55, -RD / 2 + 0.14);
-box(9.1, 0.06, 0.08, M.dark, 0, 2.78, -RD / 2 + 0.15); box(9.1, 0.06, 0.08, M.dark, 0, 0.33, -RD / 2 + 0.15);
+box(9, 2.4, 0.05, M.mirror, 0, 1.55, -RD / 2 + 0.14, frontWall);
+box(9.1, 0.06, 0.08, M.dark, 0, 2.78, -RD / 2 + 0.15, frontWall); box(9.1, 0.06, 0.08, M.dark, 0, 0.33, -RD / 2 + 0.15, frontWall);
+
+/* 통창 모드: 5층(약 16m) 높이에서 내려다보는 강변 */
+const FLOOR_H = 16;
+const glassWall = new THREE.Group(); glassWall.visible = false; scene.add(glassWall);
+{
+  const WZ = -RD / 2;
+  box(RW, 0.8, 0.24, M.wall, 0, 4.6, WZ, glassWall);                     // 위 들보
+  box(RW, 0.14, 0.3, M.dark, 0, 0.07, WZ, glassWall);                     // 아래 턱
+  for (let x = -RW / 2 + 0.05; x <= RW / 2; x += RW / 8) box(0.09, 4.2, 0.14, M.dark, x, 2.1, WZ, glassWall);   // 창틀 기둥
+  box(RW, 0.06, 0.12, M.dark, 0, 4.2, WZ, glassWall);
+  const glass = new THREE.Mesh(new THREE.PlaneGeometry(RW, 4.1), new THREE.MeshStandardMaterial({ color: 0xdbeafe, transparent: true, opacity: 0.1, roughness: 0.02, metalness: 0.4, depthWrite: false }));
+  glass.position.set(0, 2.15, WZ + 0.02); glassWall.add(glass);
+  box(RW + 0.6, 0.3, 1.2, std(0xcbd5e1), 0, -0.15, WZ - 0.6, glassWall);   // 바깥 턱
+}
+const outside = new THREE.Group(); outside.visible = false; scene.add(outside);
+const cars = [], boats = [];
+let riverTex = null;
+function buildOutside() {
+  if (outside.userData.built) return; outside.userData.built = true;
+  const Y = -FLOOR_H, o = outside;
+  const plane = (w, d, m, x, y, z) => { const p = new THREE.Mesh(new THREE.PlaneGeometry(w, d), m); p.rotation.x = -Math.PI / 2; p.position.set(x, y, z); o.add(p); return p; };
+  // 우리 건물 외벽 (창 아래로 보이는 부분)
+  box(40, FLOOR_H, 1, std(0x94a3b8), 0, Y / 2 - 0.3, -RD / 2 - 0.9, o);
+  for (let i = 1; i < 5; i++) box(40, 0.25, 1.3, std(0xe2e8f0), 0, -i * 3.2, -RD / 2 - 1.0, o);
+  plane(900, 900, std(0x7c8b6a, { roughness: 1 }), 0, Y - 0.02, -200);
+  // 가까운 쪽: 도로 → 강변 공원 → 산책로
+  plane(900, 9, std(0x3f4650, { roughness: 0.9 }), 0, Y, -21);
+  for (let x = -300; x < 300; x += 6) plane(3, 0.25, new THREE.MeshBasicMaterial({ color: 0xf8fafc }), x, Y + 0.01, -21);
+  plane(900, 3, std(0xd6d3d1), 0, Y + 0.005, -26.5);                       // 인도
+  plane(900, 16, std(0x4d7c3a, { roughness: 1 }), 0, Y + 0.004, -36);      // 공원 잔디
+  plane(900, 2.4, std(0xe7c9a0), 0, Y + 0.01, -38);                        // 산책로
+  plane(900, 1.6, std(0xb45309, { roughness: 0.9 }), 0, Y + 0.012, -34.2); // 자전거길
+  // 나무
+  const trunk = std(0x6b4423), leaf = [std(0x2f6b2f), std(0x3f8a3a), std(0x4d9a43)];
+  const cone = new THREE.ConeGeometry(1.6, 4.5, 8), sph = new THREE.SphereGeometry(1.7, 10, 8), stem = new THREE.CylinderGeometry(0.18, 0.24, 2, 6);
+  const tree = (x, z, s = 1) => { const t = new THREE.Mesh(stem, trunk); t.position.set(x, Y + 1 * s, z); t.scale.setScalar(s); o.add(t); const l = new THREE.Mesh(Math.random() < 0.5 ? cone : sph, leaf[Math.floor(Math.random() * 3)]); l.position.set(x, Y + (2 + 1.8) * s, z); l.scale.setScalar(s * (0.8 + Math.random() * 0.4)); o.add(l); };
+  for (let x = -220; x < 220; x += 7 + Math.random() * 5) { tree(x, -30 + Math.random() * 2, 1); if (Math.random() < 0.6) tree(x + 3, -41 - Math.random() * 2, 0.9); }
+  // 강
+  const rc = document.createElement('canvas'); rc.width = rc.height = 256; const rg = rc.getContext('2d');
+  rg.fillStyle = '#2f7fc4'; rg.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 260; i++) { rg.fillStyle = `rgba(255,255,255,${0.05 + Math.random() * 0.14})`; rg.fillRect(Math.random() * 256, Math.random() * 256, 8 + Math.random() * 26, 1.5); }
+  riverTex = new THREE.CanvasTexture(rc); riverTex.wrapS = riverTex.wrapT = THREE.RepeatWrapping; riverTex.repeat.set(40, 4); riverTex.colorSpace = THREE.SRGBColorSpace;
+  plane(1200, 90, new THREE.MeshStandardMaterial({ map: riverTex, color: 0xcfe6ff, roughness: 0.25, metalness: 0 }), 0, Y + 0.03, -88);
+  box(1200, 0.5, 1.5, std(0xcbd5e1), 0, Y + 0.25, -43, o);                  // 제방
+  box(1200, 0.5, 1.5, std(0xcbd5e1), 0, Y + 0.25, -133, o);
+  // 다리
+  const bx = 55, deckM = std(0xd1d5db), steel = std(0xb91c1c, { roughness: 0.4 });
+  box(14, 1.2, 100, deckM, bx, Y + 3.2, -88, o);
+  for (let z = -48; z >= -128; z -= 20) box(3, 4, 3, deckM, bx, Y + 1, z, o);
+  [-6.5, 6.5].forEach((dx) => { for (let i = 0; i <= 20; i++) { const z = -40 - i * 4.8, h = 3 + Math.sin((i / 20) * Math.PI) * 14; box(0.6, h, 0.6, steel, bx + dx, Y + 3.8 + h / 2, z, o); } });
+  [-6.5, 6.5].forEach((dx) => { const arch = new THREE.Mesh(new THREE.TorusGeometry(48, 0.7, 6, 40, Math.PI), steel); arch.rotation.y = Math.PI / 2; arch.scale.set(1, 0.36, 1); arch.position.set(bx + dx, Y + 3.8, -88); o.add(arch); });
+  // 맞은편: 공원과 도시
+  plane(900, 30, std(0x557a3d, { roughness: 1 }), 0, Y + 0.004, -150);
+  for (let x = -260; x < 260; x += 9 + Math.random() * 6) tree(x, -140 - Math.random() * 14, 1.1);
+  const winTex = (() => {
+    const c = document.createElement('canvas'); c.width = 64; c.height = 128; const w = c.getContext('2d');
+    w.fillStyle = '#e5e7eb'; w.fillRect(0, 0, 64, 128); w.fillStyle = '#7b93ad';
+    for (let y = 6; y < 128; y += 10) for (let x = 5; x < 64; x += 12) w.fillRect(x, y, 7, 6);
+    const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; return t;
+  })();
+  const tints = [0xffffff, 0xe0f2fe, 0xfef3c7, 0xf1f5f9, 0xdbeafe, 0xfce7f3];
+  for (let x = -330; x < 330; x += 10 + Math.random() * 14) for (let row = 0; row < 3; row++) {
+    const w = 8 + Math.random() * 14, d = 8 + Math.random() * 12, h = 8 + Math.random() * (row === 2 ? 60 : row === 1 ? 38 : 20), z = -185 - row * 40 - Math.random() * 14;
+    const t = winTex.clone(); t.needsUpdate = true; t.repeat.set(Math.max(1, w / 6), Math.max(1, h / 12));
+    box(w, h, d, new THREE.MeshStandardMaterial({ map: t, color: tints[Math.floor(Math.random() * tints.length)], roughness: 0.5, metalness: 0.15 }), x + Math.random() * 4, Y + h / 2, z, o);
+  }
+  // 먼 산
+  for (let i = 0; i < 9; i++) { const m = new THREE.Mesh(new THREE.ConeGeometry(70 + Math.random() * 60, 50 + Math.random() * 50, 6), std(0x7d93ad, { roughness: 1 })); m.position.set(-420 + i * 105, Y + 20, -480 - Math.random() * 60); o.add(m); }
+  // 차와 배
+  const carCols = [0xef4444, 0xf8fafc, 0x111827, 0x2563eb, 0xfacc15, 0x9ca3af];
+  for (let i = 0; i < 16; i++) {
+    const c = new THREE.Group(), lane = i % 2 ? 1 : -1;
+    box(4.2, 1.2, 1.9, std(carCols[i % carCols.length], { roughness: 0.3, metalness: 0.4 }), 0, 0.75, 0, c);
+    box(2.4, 0.8, 1.7, std(0x1e293b, { roughness: 0.1 }), -0.2, 1.6, 0, c);
+    c.position.set(-250 + Math.random() * 500, Y, -21 + lane * 2); o.add(c);
+    cars.push({ g: c, v: lane * (10 + Math.random() * 6) });
+  }
+  for (let i = 0; i < 4; i++) {
+    const b = new THREE.Group();
+    box(9, 1.4, 3, std(i % 2 ? 0xf8fafc : 0xfbbf24), 0, 0.4, 0, b); box(3.5, 1.4, 2.4, std(0x1e3a8a), -1, 1.7, 0, b);
+    const wake = new THREE.Mesh(new THREE.PlaneGeometry(14, 2.6), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.35, depthWrite: false }));
+    wake.rotation.x = -Math.PI / 2; wake.position.set(-9, -0.3, 0); b.add(wake);
+    b.position.set(-200 + i * 110, Y + 0.05, -70 - i * 12); o.add(b);
+    boats.push({ g: b, v: (i % 2 ? -1 : 1) * (3 + Math.random() * 2) });
+    if (i % 2) b.rotation.y = Math.PI;
+  }
+}
+function updateOutside(dt) {
+  if (!outside.visible) return;
+  for (const c of cars) { c.g.position.x += c.v * dt; if (c.g.position.x > 260) c.g.position.x = -260; if (c.g.position.x < -260) c.g.position.x = 260; c.g.rotation.y = c.v < 0 ? Math.PI : 0; }
+  for (const b of boats) { b.g.position.x += b.v * dt; if (b.g.position.x > 280) b.g.position.x = -280; if (b.g.position.x < -280) b.g.position.x = 280; }
+  if (riverTex) riverTex.offset.x += dt * 0.004;
+}
+function setWall(mode) {
+  db.wall = mode; save();
+  const win = mode === 'window';
+  if (win) buildOutside();
+  if (!win && cam.mode === 4) { cam.mode = 0; cam.auto = true; $('btnView').textContent = '시점: 자동'; setView('diag'); }
+  frontWall.visible = !win; glassWall.visible = win; outside.visible = win;
+  scene.background.set(win ? 0xbcd7f2 : 0xdfe7ef);
+  scene.fog.color.set(win ? 0xc7dcf0 : 0xdfe7ef); scene.fog.near = win ? 90 : 16; scene.fog.far = win ? 620 : 34;
+  sun.intensity = win ? 2.0 : 1.6;
+  $('btnWall').textContent = win ? '벽: 통창' : '벽: 거울';
+  $('btnWall').setAttribute('aria-pressed', String(win));
+}
+$('btnWall').onclick = () => { setWall(db.wall === 'window' ? 'mirror' : 'window'); toast(db.wall === 'window' ? '통창 모드: 5층에서 내려다보는 강변' : '거울 모드: 자세를 거울로 확인', 2); };
 // 천장 조명
 for (let x = -6; x <= 6; x += 4) for (let z = -4; z <= 4; z += 4) box(2.6, 0.06, 0.4, new THREE.MeshBasicMaterial({ color: 0xffffff }), x, 4.6, z);
 // 간판
@@ -315,11 +422,11 @@ function poseFor(p, id, phase, rep, t) {
 }
 
 /* ───────── 카메라 (끌어서 돌리기) ───────── */
-const cam = { th: 0.32, ph: 1.28, d: 5.6, look: new THREE.Vector3(0, 0.95, 0.3), auto: true, mode: 0 };
+const cam = { th: 0.32, ph: 1.28, d: 5.6, look: new THREE.Vector3(0, 0.95, 0.3), lookTo: new THREE.Vector3(0, 0.95, 0.3), auto: true, mode: 0 };
 const camTo = { th: cam.th, ph: cam.ph, d: cam.d };
-const VIEWS = { front: [0.18, 1.3, 5.2], diag: [0.72, 1.22, 5.4], side: [1.25, 1.06, 5.6] };
-const VIEW_NAMES = ['자동', '정면', '대각', '측면'];
-function setView(v) { const [th, ph, d] = VIEWS[v] || VIEWS.diag; Object.assign(camTo, { th, ph, d }); }
+const VIEWS = { front: [0.18, 1.3, 5.2], diag: [0.72, 1.22, 5.4], side: [1.25, 1.06, 5.6], out: [0, 1.396, 55.85, [0, -8, -60]] };
+const VIEW_NAMES = ['자동', '정면', '대각', '측면', '창밖'];
+function setView(v) { const [th, ph, d, look] = VIEWS[v] || VIEWS.diag; Object.assign(camTo, { th, ph, d }); cam.lookTo.set(...(look || [0, 0.95, 0.3])); }
 let drag = null;
 canvas.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY }; canvas.setPointerCapture(e.pointerId); });
 canvas.addEventListener('pointermove', (e) => {
@@ -330,9 +437,9 @@ canvas.addEventListener('pointermove', (e) => {
 canvas.addEventListener('pointerup', () => { drag = null; });
 canvas.addEventListener('wheel', (e) => { camTo.d = clamp(camTo.d + e.deltaY * 0.004, 2.8, 10); }, { passive: true });
 $('btnView').onclick = () => {
-  cam.mode = (cam.mode + 1) % VIEW_NAMES.length; cam.auto = cam.mode === 0;
+  cam.mode = (cam.mode + 1) % VIEW_NAMES.length; if (cam.mode === 4 && db.wall !== 'window') cam.mode = 0; cam.auto = cam.mode === 0;
   $('btnView').textContent = `시점: ${VIEW_NAMES[cam.mode]}`;
-  if (cam.auto) setView(curView()); else setView(['', 'front', 'diag', 'side'][cam.mode]);
+  if (cam.auto) setView(curView()); else setView(['', 'front', 'diag', 'side', 'out'][cam.mode]);
 };
 const curView = () => (sess ? sess.steps[sess.i].ex.view : demo ? EXI[demo].view : 'diag');
 
@@ -765,7 +872,7 @@ $('gSave').onclick = () => {
 const clock = new THREE.Clock();
 function frame() {
   const dt = Math.min(clock.getDelta(), 0.1) * fast, t = clock.elapsedTime * fast;
-  tickSession(dt);
+  tickSession(dt); updateOutside(dt);
   // 트레이너와 나
   if (sess) {
     const st = sess.steps[sess.i], id = sess.mode === 'work' ? st.ex.id : sess.mode === 'ready' ? st.ex.id : 'stand';
@@ -784,13 +891,14 @@ function frame() {
   for (const [p, tag] of [[coach, coachTag], [me, meTag]]) { p.head.getWorldPosition(tag.position); tag.position.y += 0.27; }
   // 카메라
   const k = 1 - Math.exp(-5 * dt / fast);
-  cam.th += (camTo.th - cam.th) * k; cam.ph += (camTo.ph - cam.ph) * k; cam.d += (camTo.d - cam.d) * k;
+  cam.look.lerp(cam.lookTo, k); cam.th += (camTo.th - cam.th) * k; cam.ph += (camTo.ph - cam.ph) * k; cam.d += (camTo.d - cam.d) * k;
   camera.position.set(cam.look.x + Math.sin(cam.th) * Math.sin(cam.ph) * cam.d, cam.look.y + Math.cos(cam.ph) * cam.d, cam.look.z + Math.cos(cam.th) * Math.sin(cam.ph) * cam.d);
   camera.lookAt(cam.look);
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
 setView('diag');
+setWall(db.wall === 'window' ? 'window' : 'mirror');
 // 입력 칸 이름과 단위를 한 줄로
 document.querySelectorAll('.formGrid label').forEach((l) => { const sp = document.createElement('span'); while (l.firstChild && !/^(INPUT|SELECT|TEXTAREA)$/.test(l.firstChild.nodeName)) sp.append(l.firstChild); l.prepend(sp); });
 showTab('train');
