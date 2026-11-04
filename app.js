@@ -891,6 +891,9 @@ $('nowChip').onclick = () => {
 $('autoNextRow').hidden = venue.id !== 'club';
 $('autoNext').onchange = (e) => { settings.autoNext = e.target.checked; edm.autoNext = venue.id === 'club' && settings.autoNext; saveSettings(); };
 $('btnSettings').onclick = () => { drawTracks(); $('autoNext').checked = settings.autoNext; $('volume').value = settings.volume; $('lowFx').checked = settings.lowFx; $('allFollow').checked = settings.allFollow; $('settingsModal').hidden = false; };
+const syncGuide = () => { const on = settings.guide !== false; document.body.classList.toggle('noGuide', !on); $('btnGuide').textContent = on ? '안내 켬' : '안내 끔'; $('btnGuide').setAttribute('aria-pressed', String(on)); };
+$('btnGuide').onclick = () => { settings.guide = settings.guide === false; saveSettings(); syncGuide(); toast(settings.guide ? '안내 문구를 보여 줍니다' : '안내 문구를 숨깁니다', 1.4); };
+syncGuide();
 $('allFollow').onchange = (e) => { settings.allFollow = e.target.checked; saveSettings(); renderUi(); };
 $('volume').oninput = (e) => { settings.volume = +e.target.value; edm.setVolume(settings.volume / 100); saveSettings(); };
 $('lowFx').onchange = (e) => { settings.lowFx = e.target.checked; fxState.full = !settings.lowFx; saveSettings(); };

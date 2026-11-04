@@ -184,3 +184,6 @@ h3 { margin: 14px 0 8px; font-size: 14px; font-weight: 700; }
 .venueCard.gym .vTag { color: #0d9488; }
 .venueCard.gym .btn.primary { background: linear-gradient(135deg, #0d9488, #2563eb); box-shadow: 0 12px 28px rgba(37, 99, 235, .38); text-decoration: none; text-align: center; display: block; }
 .venueCard:nth-child(3) { animation-delay: .16s; }
+
+/* 안내 문구 끄기 */
+body.noGuide #caption, body.noGuide #gCaption, body.noGuide .sCue { display: none !important; }

@@ -464,6 +464,9 @@ function speak(text, cut = false) {
   speechSynthesis.speak(u);
 }
 const syncVoiceBtn = () => { $('btnVoice').textContent = db.voice ? '음성 켬' : '음성 끔'; $('btnVoice').setAttribute('aria-pressed', String(db.voice)); };
+const syncGuide = () => { const on = db.guide !== false; document.body.classList.toggle('noGuide', !on); $('btnGuide').textContent = on ? '안내 켬' : '안내 끔'; $('btnGuide').setAttribute('aria-pressed', String(on)); };
+$('btnGuide').onclick = () => { db.guide = db.guide === false; save(); syncGuide(); toast(db.guide ? '안내 문구를 보여 줍니다' : '안내 문구를 숨깁니다', 1.4); };
+syncGuide();
 $('btnVoice').onclick = () => { db.voice = !db.voice; save(); syncVoiceBtn(); if (!db.voice) window.speechSynthesis?.cancel(); toast(db.voice ? '횟수를 소리 내어 셉니다' : '음성 카운트를 끕니다', 1.6); };
 syncVoiceBtn();
 
