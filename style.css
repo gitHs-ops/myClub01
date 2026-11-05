@@ -93,7 +93,7 @@ canvas#scene:active { cursor: grabbing; }
 .gateWrap .lead { color: #e2e8f0; }
 .gateWrap .kicker { color: #fbcfe8; }
 .gateWrap .note { color: #cbd5e1; }
-.venueCards { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+.venueCards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .venueCard { padding: 22px; display: flex; flex-direction: column; text-align: left; }
 .venueCard:nth-child(2) { animation-delay: .08s; }
 .venueCard h2 { margin: 2px 0 8px; font: 800 26px var(--font-accent); letter-spacing: -0.3px; }
@@ -223,3 +223,6 @@ body.noGuide #caption, body.noGuide #gCaption, body.noGuide .sCue { display: non
 .venueCard { padding: 20px 18px; }
 .venueCard h2 { font-size: 22px; }
 .venueCard .btn.big { font-size: 15px; padding: 13px 10px; white-space: nowrap; }
+.venueCard.shuffle .vTag { color: #7c3aed; }
+.venueCard.shuffle .btn.primary { background: linear-gradient(135deg, #7c3aed, #db2777); box-shadow: 0 12px 28px rgba(124, 58, 237, .38); text-decoration: none; text-align: center; display: block; }
+.gateWrap { width: min(1080px, 100%); }
