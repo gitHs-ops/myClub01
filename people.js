@@ -252,6 +252,7 @@ export function updatePerson(p, dt, t, clock, collide) {
       if (p.stuck > 2.4) { p.target = null; const f = p.onArrive; p.onArrive = null; f?.(); }
     }
   } else collide?.(p);
+  if (p.stepMove) moving = true;   // 라인댄스: 위치는 밖에서 정하고 걸음만 걷는다
   p.walk = damp(p.walk, moving ? 1 : 0, 9, dt);
   if (moving) p.walkPhase += dt * p.speed * 6.4 * (p.run ? 1.3 : 1);
   let dy = p.yawTo - p.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));

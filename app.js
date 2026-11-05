@@ -1,6 +1,6 @@
 import * as THREE from './vendor/three.min.js';
 import { Edm, TRACKS } from './edm.js?v=8';
-import { makePerson, updatePerson, goTo, say, jump, setWardrobe } from './people.js?v=10';
+import { makePerson, updatePerson, goTo, say, jump, setWardrobe } from './people.js?v=11';
 import { buildWorld, ROOM, FLOOR, TABLES, BAR_SPOTS } from './world.js?v=14';
 import { VENUES } from './venues.js?v=5';
 import { listTracks, addTrack, putTrack, removeTrack, isAudioFile, titleOf, analyze, isLrcFile, readText, decodeText, lyricLines, id3Lyrics } from './mylist.js?v=2';
@@ -1148,6 +1148,7 @@ function goStage() {
 }
 const HELLOS = venue.hellos;
 function mingle() {
+  stopLine();
   stopMingle();
   const near = npcs.filter((n) => n.role === 'floor' && !n.target && Math.hypot(n.x - player.x, n.z - player.z) < 7).sort((a, b) => Math.hypot(a.x - player.x, a.z - player.z) - Math.hypot(b.x - player.x, b.z - player.z)).slice(0, 5);
   if (!near.length) { toast('주변에 사람이 없습니다. 플로어 쪽으로 가 보세요'); return; }
@@ -1167,10 +1168,105 @@ function mingle() {
   toast('모인 사람들이 내 동작을 따라 합니다', 2.4);
   renderUi();
 }
+/* 라인댄스: 어울린 사람들과 줄을 맞춰 16카운트 루틴을 함께 춘다 (벽이 바뀔 때마다 왼쪽으로 1/4 회전)
+   1~4 오른쪽 그레이프바인 · 5~8 왼쪽으로 돌아오기 · 9~12 뒤로 세 걸음 박수 · 13~16 앞으로 세 걸음, 왼쪽으로 돌기 */
+let line = null;
+const LINE_PARTS = ['오른쪽으로 그레이프바인', '왼쪽으로 돌아오기', '뒤로 세 걸음, 박수', '앞으로 세 걸음, 왼쪽으로 돌기'];
+const smooth = (x) => { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); };
+function lineOffset(k) {   // 오른쪽(R)·앞(F) 거리, 걷는 중인지
+  if (k < 3) return [smooth(k / 3) * 1.1, 0, true];
+  if (k < 4) return [1.1, 0, false];
+  if (k < 7) return [1.1 - smooth((k - 4) / 3) * 1.1, 0, true];
+  if (k < 8) return [0, 0, false];
+  if (k < 11) return [0, -smooth((k - 8) / 3) * 0.9, true];
+  if (k < 12) return [0, -0.9, false];
+  if (k < 14) return [0, -0.9 + smooth((k - 12) / 2) * 0.9, true];
+  return [0, 0, false];
+}
+function startLine() {
+  if (line) return stopLine();
+  const extra = npcs.filter((n) => n.role === 'floor' && !n.mingle && !n.target && Math.hypot(n.x - player.x, n.z - player.z) < 9)
+    .sort((p, q) => Math.hypot(p.x - player.x, p.z - player.z) - Math.hypot(q.x - player.x, q.z - player.z)).slice(0, Math.max(0, 11 - mingling.length));
+  const crew = [...mingling, ...extra];
+  const COLS = 4, GAP = 1.5, rows = Math.ceil((crew.length + 1) / COLS);
+  const cx = clamp(player.x, FLOOR.xMin + 1.2 + GAP * 1.5, FLOOR.xMax - 1.2 - GAP * 1.5);
+  const z0 = clamp(player.z, FLOOR.zMin + 1.3, FLOOR.zMax - 1.3 - GAP * (rows - 1));
+  // 나는 앞줄 가운데(왼쪽에서 두 번째), 나머지는 가까운 사람부터 앞줄로
+  const spots = [];
+  for (let r = 0; r < rows; r++) for (let c = 0; c < COLS; c++) spots.push({ x: cx + (c - 1.5) * GAP, z: z0 + r * GAP });
+  const mine = spots.splice(1, 1)[0];
+  line = { crew: [player, ...crew], extra, startBeat: null, gatherUntil: now() + 7, wall: 0, lastK: -1, F0: Math.PI };
+  player.line = { hx: mine.x, hz: mine.z };
+  crew.forEach((n, i) => {
+    const sp = spots[i]; n.mingle = true; n.line = { hx: sp.x, hz: sp.z }; n.danceTo = 0; n.upTo = 0;
+    n.run = true; goTo(n, sp.x, sp.z, () => { n.run = false; n.yawTo = line?.F0 ?? n.yawTo; });
+  });
+  stopGrooveShuffleForLine();
+  goTo(player, mine.x, mine.z, () => { player.yawTo = Math.PI; renderUi(); });
+  camSet(0.5, 1.22, 11, 1.4);
+  say(player, '줄 맞춰 라인댄스 해요!', 2);
+  toast(`라인댄스 ${line.crew.length}명 · 자리를 잡는 중입니다`, 2.4);
+  renderUi();
+}
+function stopGrooveShuffleForLine() { grooving = true; if (grooveLevel === 0) grooveLevel = 1; applyGroove(); }
+function stopLine() {
+  if (!line) return;
+  line.crew.forEach((p) => { p.stepMove = false; p.line = null; if (p !== player) { p.run = false; p.target = null; p.onArrive = null; p.danceTo = 1; p.danceStyle = pickStyle(venue.styles); } });
+  line.extra.forEach((n) => { n.mingle = false; });
+  line = null; player.target = null;
+  toast('라인댄스를 마칩니다', 1.6);
+  renderUi();
+}
+const lineCaption = () => {
+  if (!line) return null;
+  if (line.startBeat == null) return ['줄을 맞추는 중입니다', `${line.crew.length}명이 자리로 갑니다`];
+  if (line.lastK < 0) return ['넷 세고 시작합니다', '5, 6, 7, 8!'];
+  const part = Math.floor(line.lastK / 4);
+  return [`${line.lastK + 1} · ${LINE_PARTS[part]}`, `라인댄스 ${line.crew.length}명 · ${line.wall + 1}번째 벽`];
+};
+function lineTick(clock) {
+  if (!line) return;
+  // 내가 걸어 나가면 끝낸다 (자리 잡는 동안은 제외)
+  if (line.startBeat != null && player.target) return stopLine();
+  if (line.startBeat == null) {
+    const ready = !player.target && line.crew.every((p) => !p.target);
+    if (ready || now() > line.gatherUntil) {
+      line.startBeat = Math.ceil(clock.beat / 4) * 4 + 4;
+      line.crew.forEach((p) => { if (p !== player) { p.target = null; p.onArrive = null; p.run = false; } });
+      say(player, '5, 6, 7, 8!', 1.6);
+    } else return;
+  }
+  const c = clock.beat - line.startBeat;
+  line.crew.forEach((p, i) => {
+    if (!p.line) return;
+    if (c < 0) {   // 시작 전: 제자리에서 앞을 보고 가볍게 바운스
+      p.stepMove = false; p.yawTo = line.F0; p.danceTo = 1; p.danceStyle = 1; p.groove = 0.5;
+      if (p !== player && !p.target) { p.x += (p.line.hx - p.x) * 0.2; p.z += (p.line.hz - p.z) * 0.2; }
+      return;
+    }
+    const cyc = Math.floor(c / 16), k = c - cyc * 16;
+    const F = line.F0 - cyc * (Math.PI / 2) - (k >= 14 ? smooth((k - 14) / 2) * (Math.PI / 2) : 0), Fb = line.F0 - cyc * (Math.PI / 2);
+    const [R, Fw, walking] = lineOffset(k);
+    const rx = -Math.cos(Fb), rz = Math.sin(Fb), fx = Math.sin(Fb), fz = Math.cos(Fb);
+    p.x = p.line.hx + rx * R + fx * Fw; p.z = p.line.hz + rz * R + fz * Fw;
+    p.yaw = p.yawTo = F; p.stepMove = walking; p.target = null;
+    // 걷지 않는 박: 박수 (스텝 박수 동작)
+    p.danceStyle = 3; p.groove = 0.9; p.danceTo = walking ? 0 : 1; p.upTo = 0;
+    p.beatOff = p === player ? 0 : -0.02 * ((i % 4) + 1);
+  });
+  const n = Math.floor(c);
+  if (n >= 0 && n !== line.n) {
+    line.n = n; const k = n % 16; line.lastK = k; line.wall = Math.floor(n / 16) % 4;
+    if (k === 3 || k === 7 || k === 11) edm.clap?.(edm.ctx.currentTime, 0.32);
+    if (k === 0 && n > 0) { const m = pick(line.crew.filter((p) => p !== player)); if (m) say(m, pick(['이번엔 이쪽 벽!', '잘한다!', '한 번 더!', '예이!']), 1.4); }
+    const [m1, m2] = lineCaption(); caption(m1, m2);
+  } else if (c < 0) { const [m1, m2] = lineCaption(); caption(m1, m2); }
+}
+
 /* 어울리는 사람들은 내 동작을 그대로 따라 한다: 춤 종류·흥·손 들기·손 흔들기·박자 */
 function syncMingle() {
   mingling.forEach((n, i) => {
-    if (n.target) return;
+    if (n.target || n.line) return;
     n.danceTo = player.danceTo; n.danceStyle = player.danceStyle; n.groove = player.groove;
     n.beatOff = player.beatOff - 0.02 * (i + 1);          // 아주 조금씩 늦게 따라 한다
     n.upTo = player.upTo; n.waveTo = player.waveTo;
@@ -1259,7 +1355,11 @@ function renderUi() {
     list.push({ label: '메인 스테이지로 가기', primary: grooveBeats >= 8, fn: goStage });
     if (!atTable && myTable) list.push({ label: '테이블로', fn: () => walkToTable(myTable) });
   } else if (step >= 4 && onFloor() && (stageArrived || !player.target)) {
-    list.push({ label: mingling.length ? '다른 사람과 어울리기' : '어울리기', primary: !mingling.length, fn: mingle });
+    if (line) list.push({ label: '라인댄스 그만', on: true, fn: stopLine });
+    else {
+      list.push({ label: mingling.length ? '다른 사람과 어울리기' : '어울리기', primary: !mingling.length, fn: mingle });
+      if (mingling.length) list.push({ label: '라인댄스', primary: true, fn: startLine });
+    }
     list.push({ label: '손 들기', on: !!player.upTo, fn: handsUp });
     list.push({ label: '점프', fn: doJump });
     list.push({ label: settings.allFollow ? '전원 따라 하기: 켬' : '전원 따라 하기: 끔', on: settings.allFollow, fn: toggleAllFollow });
@@ -1268,7 +1368,8 @@ function renderUi() {
   }
   actions(list);
 
-  if (player.target) caption('걸어가는 중입니다');
+  if (line) { const [m1, m2] = lineCaption(); caption(m1, m2); }
+  else if (player.target) caption('걸어가는 중입니다');
   else if (step === 3 && !atTable) caption(venue.jazz ? '빈 자리에 앉아 한 잔 하세요' : '스탠딩 테이블로 가서 목을 축이세요', venue.jazz ? '버튼을 누르거나 촛불 켜진 탁자를 눌러도 됩니다' : '버튼을 누르거나 빛나는 테이블을 눌러도 됩니다');
   else if (step === 3 && serving) caption('홀 직원이 음료를 가져다 드립니다', '잠시 기다리세요');
   else if (step === 3 && !hasCup) caption('어떤 음료로 할까요?');
@@ -1278,7 +1379,7 @@ function renderUi() {
   else if (venue.jazz && playerCouple()) caption('천천히 돌며 블루스를 춥니다', '블루스 그만을 누르면 자리로 돌아갑니다');
   else if (venue.jazz) caption('');
   else if (step === 5 && onFloor() && !mingling.length) caption('어울리기를 누르면 주변 사람들이 모입니다');
-  else if (step === 5 && mingling.length) caption(`함께 ${mingling.length + 1}명이 어울리는 중입니다`, hi5 ? `하이파이브 ${hi5}회` : '모두 내 동작을 따라 합니다. 흥·셔플·손 들기·점프를 바꿔 보세요');
+  else if (step === 5 && mingling.length) caption(`함께 ${mingling.length + 1}명이 어울리는 중입니다`, hi5 ? `하이파이브 ${hi5}회` : '라인댄스를 누르면 줄을 맞춰 다 함께 춥니다');
   else if (step === 5) caption('메인 스테이지로 가서 사람들과 어울려 보세요');
   else caption('');
 }
@@ -1601,7 +1702,7 @@ function crowdBeat(clock) {
   const b = Math.floor(clock.beat);
   if (venue.jumps && clock.section.name === 'drop' && b !== crowdBeat.last) {
     crowdBeat.last = b;
-    for (let i = 0; i < 4; i++) { const n = pick(npcs); if (n.role === 'floor' && !n.target) jump(n); }
+    for (let i = 0; i < 4; i++) { const n = pick(npcs); if (n.role === 'floor' && !n.target && !n.line) jump(n); }
   }
 }
 
@@ -1629,6 +1730,7 @@ function frame(nowMs) {
   // 플레이어 춤 유지
   if (phase === 'room' || phase === 'queue') player.danceTo = grooving ? 1 : 0;
   if (phase === 'queue' && grooving) { player.danceStyle = 0; player.groove = 0.42; }
+  lineTick(clock);
 
   // 줄
   updateLimo(dt);
