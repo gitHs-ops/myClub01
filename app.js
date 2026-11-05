@@ -1,6 +1,6 @@
 import * as THREE from './vendor/three.min.js';
 import { Edm, TRACKS } from './edm.js?v=8';
-import { makePerson, updatePerson, goTo, say, jump, setWardrobe } from './people.js?v=9';
+import { makePerson, updatePerson, goTo, say, jump, setWardrobe } from './people.js?v=10';
 import { buildWorld, ROOM, FLOOR, TABLES, BAR_SPOTS } from './world.js?v=14';
 import { VENUES } from './venues.js?v=5';
 import { listTracks, addTrack, putTrack, removeTrack, isAudioFile, titleOf, analyze, isLrcFile, readText, decodeText, lyricLines, id3Lyrics } from './mylist.js?v=2';
@@ -63,9 +63,10 @@ const world = buildWorld(scene, fxState, venue);
 
 /* ───── 사람들 ───── */
 const everyone = [];
-// 손님은 사람과 블록 캐릭터가 반반이다
+// 손님: 8비트 도트 캐릭터 30%, 블록 캐릭터 30%, 사람 40%
 let guestCount = 0;
-const spawn = (look) => { const p = makePerson(scene, look || { brick: ++guestCount % 2 === 0 }); everyone.push(p); return p; };
+const guestLook = () => { const n = ++guestCount % 10; return n === 2 || n === 5 || n === 8 ? { pixel: true } : n % 2 === 0 ? { brick: true } : {}; };
+const spawn = (look) => { const p = makePerson(scene, look || guestLook()); everyone.push(p); return p; };
 const place = (p, x, z, yaw = 0) => { p.x = x; p.z = z; p.yaw = p.yawTo = yaw; p.root.position.set(x, 0, z); };
 
 const player = spawn({ style: 0, top: new THREE.MeshStandardMaterial({ color: 0x6366f1, roughness: 0.55 }), bottom: new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.7 }), skirt: false, height: 1 });

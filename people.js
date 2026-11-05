@@ -74,6 +74,53 @@ const BRICK_COLORS = [0xd01012, 0x0057a8, 0xf5cd2f, 0x00852b, 0xfe8a18, 0xf5f5f5
 const BRICK_YELLOW = plastic(0xf7c600), BRICK_SKINS = [0xf4cdb0, 0xd6a077, 0xb9845c, 0x8d5a34].map(plastic), BRICK_HAIRS = [0x1b1b1f, 0x5a3417, 0xc98a2b, 0xd01012].map(plastic);
 const M_FACE = new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.3 });
 
+/* 8비트 도트 캐릭터: 블록 몸에 저해상도 도트 무늬를 입힌다 (픽셀이 뭉개지지 않게 Nearest) */
+const PX_SKINS = [0xf6d2b5, 0xeebd96, 0xd9a27a, 0xb57b52];
+const PX_HAIRS = [0x15131c, 0x2a1f1a, 0x4a2f22, 0x7a4a2a, 0x1c2440];
+const PX_TOPS = [[0xf2f0ea, 0x1d2238], [0xf2f0ea, 0xd2423b], [0xf6c9d4, 0xf2f0ea], [0x8ecae6, 0x264653], [0xf4d35e, 0x3d405b], [0xa7c957, 0x386641], [0xcdb4db, 0x4a3f6b], [0xf28482, 0xf7ede2]];
+const PX_PANTS = [[0x5b7fc7, 0x3a5596], [0x3d4a6b, 0x262f47], [0x2b2b33, 0x17171c], [0x9a8c76, 0x6e6352], [0x6b8fd6, 0x4766a8]];
+const PX_SHOES = [0xd8443c, 0x2b2b33, 0xf2f0ea, 0x3a7bd5];
+const hx = (n) => '#' + n.toString(16).padStart(6, '0');
+const dk = (n, k = 0.72) => { const f = (v) => Math.min(255, Math.round(v * k)); return (f((n >> 16) & 255) << 16) | (f((n >> 8) & 255) << 8) | f(n & 255); };
+function pxMat(w, h, draw) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d'); g.imageSmoothingEnabled = false; draw(g, w, h);
+  const t = new THREE.CanvasTexture(c); t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; t.colorSpace = THREE.SRGBColorSpace;
+  return new THREE.MeshStandardMaterial({ map: t, roughness: 0.9, flatShading: true });
+}
+const px = (g, c, x, y, w = 1, h = 1) => { g.fillStyle = hx(c); g.fillRect(x, y, w, h); };
+const outline = (g, w, h, c) => { g.fillStyle = hx(c); g.fillRect(0, 0, w, 1); g.fillRect(0, h - 1, w, 1); g.fillRect(0, 0, 1, h); g.fillRect(w - 1, 0, 1, h); };
+function pixelKit() {
+  const skin = pick(PX_SKINS), hair = pick(PX_HAIRS), [ta, tb] = pick(PX_TOPS), [pa, pb] = pick(PX_PANTS), shoe = pick(PX_SHOES);
+  const kind = Math.floor(Math.random() * 3);                     // 0 줄무늬 1 가슴 띠 2 민무늬+주머니
+  const top = pxMat(8, 8, (g) => {
+    px(g, ta, 0, 0, 8, 8);
+    if (kind === 0) for (let y = 1; y < 8; y += 2) px(g, tb, 0, y, 8, 1);
+    else if (kind === 1) px(g, tb, 0, 3, 8, 2);
+    else px(g, dk(ta, 0.8), 5, 2, 2, 2);
+    outline(g, 8, 8, dk(kind === 0 ? tb : ta, 0.55));
+  });
+  const bottom = pxMat(6, 8, (g) => { px(g, pa, 0, 0, 6, 8); px(g, pb, 2, 0, 1, 8); px(g, dk(pa, 0.86), 4, 5, 1, 1); px(g, dk(pa, 0.86), 1, 2, 1, 1); outline(g, 6, 8, dk(pb, 0.7)); });
+  const shoeM = pxMat(4, 4, (g) => { px(g, shoe, 0, 0, 4, 4); px(g, 0xf2f0ea, 0, 3, 4, 1); px(g, 0xf2f0ea, 1, 0, 2, 1); });
+  const skinM = pxMat(4, 4, (g) => { px(g, skin, 0, 0, 4, 4); px(g, dk(skin, 0.85), 0, 3, 4, 1); });
+  const hairM = pxMat(4, 4, (g) => { px(g, hair, 0, 0, 4, 4); px(g, dk(hair, 1.6), 1, 1); px(g, dk(hair, 1.6), 3, 2); });
+  const eyes = Math.floor(Math.random() * 3);                     // 0 동그란 눈 1 졸린 눈 2 안경
+  const face = pxMat(8, 8, (g) => {
+    px(g, skin, 0, 0, 8, 8);
+    px(g, hair, 0, 0, 8, 2); [0, 2, 3, 5, 7].forEach((x) => px(g, hair, x, 2));   // 삐죽한 앞머리
+    if (eyes === 2) { px(g, 0x1a1a22, 1, 3, 3, 1); px(g, 0x1a1a22, 4, 3, 3, 1); px(g, 0xbfe3ff, 2, 4); px(g, 0xbfe3ff, 5, 4); px(g, 0x1a1a22, 1, 4); px(g, 0x1a1a22, 3, 4, 2, 1); px(g, 0x1a1a22, 6, 4); }
+    else { px(g, 0xffffff, 1, 4, 2, 1); px(g, 0xffffff, 5, 4, 2, 1); px(g, 0x1a1a22, 2, 4); px(g, 0x1a1a22, 5, 4); if (eyes === 1) { px(g, dk(skin, 0.7), 1, 3, 2, 1); px(g, dk(skin, 0.7), 5, 3, 2, 1); } }
+    px(g, dk(skin, 0.75), 3, 6, 2, 1);                            // 입
+    px(g, 0xf0a3a3, 1, 5); px(g, 0xf0a3a3, 6, 5);                 // 볼
+  });
+  const side = pxMat(8, 8, (g) => { px(g, skin, 0, 0, 8, 8); px(g, hair, 0, 0, 8, 3); px(g, hair, 4, 3, 4, 3); px(g, hair, 3, 3); });
+  const back = pxMat(8, 8, (g) => { px(g, hair, 0, 0, 8, 6); px(g, dk(hair, 1.5), 2, 2); px(g, dk(hair, 1.5), 5, 4); px(g, hair, 1, 6, 6, 1); });
+  // BoxGeometry 면 순서: +x, -x, +y, -y, +z(얼굴), -z
+  const head = [side, side, hairM, skinM, face, back];
+  return { skin: skinM, hair: hairM, top, bottom, shoe: shoeM, head };
+}
+const PXG = { hand: new THREE.BoxGeometry(0.1, 0.1, 0.1), head: new THREE.BoxGeometry(0.3, 0.3, 0.3), spike: new THREE.BoxGeometry(0.08, 0.1, 0.08), hairTop: new THREE.BoxGeometry(0.32, 0.06, 0.32) };
+
 const add = (geo, mat, x, y, z, parent) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); parent.add(m); return m; };
 
 export function bubbleSprite() {
@@ -94,7 +141,9 @@ function drawBubble(s, text) {
 }
 
 export function makePerson(scene, look = {}) {
-  const brick = !!look.brick, round = brick && Math.random() < 0.55;   // 둥근 머리(미니 피규어)와 네모 머리(비트 인형)
+  const pixel = !!look.pixel, kit = pixel ? pixelKit() : null;
+  if (pixel) look = { ...look, skin: kit.skin, hair: kit.hair, top: kit.top, bottom: kit.bottom, shoe: kit.shoe };
+  const brick = !!look.brick || pixel, round = brick && !pixel && Math.random() < 0.55;   // 둥근 머리(미니 피규어)와 네모 머리(비트 인형)
   const P = brick ? { ...G, ...B } : G;
   const skin = look.skin || (brick ? (round ? BRICK_YELLOW : pick(BRICK_SKINS)) : pick(SKINS)), hairM = look.hair || (brick ? pick(BRICK_HAIRS) : pick(HAIRS));
   const top = look.top || (brick ? pick(BRICK_COLORS) : pick(TOPS)), bottom = look.bottom || (brick ? pick(BRICK_COLORS) : pick(BOTTOMS)), shoe = look.shoe || (brick ? bottom : pick(SHOES));
@@ -108,9 +157,15 @@ export function makePerson(scene, look = {}) {
   const torso = new THREE.Group(); torso.position.y = 0.08; hips.add(torso);
   const chest = add(P.torso, top, 0, 0.25, 0, torso); if (!brick) chest.scale.z = 0.72;
   add(P.neck, skin, 0, 0.55, 0, torso);
-  if (brick) [-1, 1].forEach((s) => { add(B.smallStud, top, s * 0.08, 0.561, 0, torso); });
+  if (brick && !pixel) [-1, 1].forEach((s) => { add(B.smallStud, top, s * 0.08, 0.561, 0, torso); });
   const head = new THREE.Group(); head.position.y = 0.69; torso.add(head);
-  if (brick) {
+  if (pixel) {
+    const h = new THREE.Mesh(PXG.head, kit.head); h.position.y = 0.02; head.add(h);
+    add(PXG.hairTop, hairM, 0, 0.19, -0.01, head);
+    [[-0.1, 0.05, 0.4], [0, 0.07, -0.2], [0.1, 0.03, 0.5], [-0.04, -0.09, 0.3], [0.08, -0.1, -0.5]].forEach(([x, z, r]) => {
+      if (Math.random() < 0.8) { const sp = add(PXG.spike, hairM, x, 0.24, z, head); sp.rotation.set(r * 0.6, 0, r); }
+    });
+  } else if (brick) {
     add(round ? B.headRound : B.headCube, skin, 0, 0, 0, head);
     const faceZ = round ? 0.134 : 0.136;
     [-1, 1].forEach((s) => add(G.eye, M_FACE, s * 0.052, 0.025, faceZ, head));
@@ -143,7 +198,7 @@ export function makePerson(scene, look = {}) {
     const e = new THREE.Group(); e.position.y = -UPARM; a.add(e);
     add(P.foreArm, brick ? top : skin, 0, -FOREARM / 2, 0, e);
     const h = new THREE.Group(); h.position.y = -FOREARM; e.add(h);
-    add(P.hand, skin, 0, -0.02, 0, h);
+    add(pixel ? PXG.hand : P.hand, skin, 0, -0.02, 0, h);
     arms[s] = { a, e, h };
   });
   const legs = {};
