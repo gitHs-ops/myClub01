@@ -1,8 +1,8 @@
 import * as THREE from './vendor/three.min.js';
 import { Edm, TRACKS } from './edm.js?v=8';
 import { makePerson, updatePerson, goTo, say, jump, setWardrobe } from './people.js?v=11';
-import { buildWorld, ROOM, FLOOR, TABLES, BAR_SPOTS } from './world.js?v=15';
-import { VENUES } from './venues.js?v=6';
+import { buildWorld, ROOM, FLOOR, TABLES, BAR_SPOTS, POOL_AREA, POOL_SPOTS, POOL_STATE } from './world.js?v=16';
+import { VENUES } from './venues.js?v=7';
 import { listTracks, addTrack, putTrack, removeTrack, isAudioFile, titleOf, analyze, isLrcFile, readText, decodeText, lyricLines, id3Lyrics } from './mylist.js?v=2';
 
 const $ = (id) => document.getElementById(id);
@@ -578,6 +578,43 @@ for (let i = 0; i < CROWD_BAR; i++) {
   place(p, s.x, s.z, Math.PI / 2 + rand(-0.3, 0.3)); setRole(p, 'bar'); npcCups(p); p.danceTo = 1; p.danceStyle = 0; p.groove = 0.3;
 }
 
+/* ───── 7080 당구 코너: 치는 사람 하나와 구경 둘 ───── */
+const poolFolk = [];
+if (POOL_AREA.on) {
+  const cueG = new THREE.CylinderGeometry(0.008, 0.015, 1.4, 8);
+  const cueM = new THREE.MeshStandardMaterial({ color: 0xb8865a, roughness: 0.4 });
+  POOL_SPOTS.forEach((S) => {
+    const p = spawn(); npcs.push(p); poolFolk.push(p);
+    place(p, S.x, S.z, S.yaw);
+    setRole(p, 'pool'); p.danceStyle = 0; p.groove = 0.3;
+    if (S.shooter) {
+      p.danceTo = 0.12;                       // 테이블에 붙어 있으니 거의 움직이지 않는다
+      const cue = new THREE.Mesh(cueG, cueM); cue.position.set(0, -0.62, 0.04); p.arms[1].h.add(cue);
+      p.isShooter = true;
+      p.armPose = (b, tt) => {
+        if (POOL_STATE.phase === 'aim') {     // 겨누고 큐를 앞뒤로 밀어 본다
+          const st = Math.sin(tt * 2.1);
+          return [[-1.16, 0.2, 0, -0.4], [-0.66, 0.05, 0, -1.12 + st * 0.44]];
+        }
+        return [[-0.3, 0.22, 0, -0.5], [-0.26, 0.12, 0, -1.5]];   // 치고 나서 허리를 편다
+      };
+    } else {
+      p.danceTo = 0.45;
+      p.armPose = () => [[-0.62, 0.3, -0.5, -1.75], [-0.7, 0.3, -0.5, -1.75]];  // 팔짱 끼고 구경
+    }
+  });
+  if (poolFolk[1]) npcCups(poolFolk[1]);
+}
+// 한 판이 끝나면 한마디 한다
+let poolSeen = 0;
+function poolTick() {
+  if (!poolFolk.length || POOL_STATE.phase !== 'rest' || POOL_STATE.shot === poolSeen) return;
+  poolSeen = POOL_STATE.shot;
+  const lines = POOL_STATE.sunk ? (venue.poolHit || ['나이스!']) : (venue.poolMiss || ['아깝다']);
+  const who = POOL_STATE.sunk ? pick(poolFolk.slice(1)) : poolFolk[0];
+  if (who) say(who, pick(lines), 2);
+}
+
 /* 충돌: 가구와 사람. 플레이어는 군중을 살짝 밀며 지나간다 */
 const PERSON_R = 0.4;
 function collide(p) {
@@ -586,13 +623,22 @@ function collide(p) {
     const dx = p.x - T.x, dz = p.z - T.z, d = Math.hypot(dx, dz), R = 0.62;
     if (d < R && d > 1e-3) { p.x = T.x + (dx / d) * R; p.z = T.z + (dz / d) * R; }
   }
+  if (POOL_AREA.on) {   // 당구대는 네모나게 막는다
+    const dx = p.x - POOL_AREA.x, dz = p.z - POOL_AREA.z;
+    const ox = POOL_AREA.hx + 0.3 - Math.abs(dx), oz = POOL_AREA.hz + 0.3 - Math.abs(dz);
+    if (ox > 0 && oz > 0) {
+      if (ox < oz) p.x = POOL_AREA.x + Math.sign(dx || 1) * (POOL_AREA.hx + 0.3);
+      else p.z = POOL_AREA.z + Math.sign(dz || 1) * (POOL_AREA.hz + 0.3);
+    }
+  }
   if (p.target || p.isPlayer) {
     for (const o of everyone) {
       if (o === p || o.isStaff || o.inLine || o === p.partner) continue;
       const dx = p.x - o.x, dz = p.z - o.z, d = Math.hypot(dx, dz);
       if (d < PERSON_R * 2 && d > 1e-3) {
         const push = PERSON_R * 2 - d, ux = dx / d, uz = dz / d;
-        if (p.isPlayer && !o.isPlayer) { o.x -= ux * push; o.z -= uz * push; }
+        if (o.role === 'pool') { p.x += ux * push; p.z += uz * push; }   // 당구 치는 사람은 밀리지 않는다
+        else if (p.isPlayer && !o.isPlayer) { o.x -= ux * push; o.z -= uz * push; }
         else if (o.isPlayer) { p.x += ux * push; p.z += uz * push; }
         else { p.x += ux * push * 0.5; p.z += uz * push * 0.5; o.x -= ux * push * 0.5; o.z -= uz * push * 0.5; }
       }
@@ -1680,6 +1726,9 @@ function npcTick(n, t, clock) {
       const [x, z] = freeFloorSpot();
       goTo(n, x, z, () => { n.yawTo = yawToStage(n.x, n.z); n.danceTo = 1; });
     }
+  } else if (n.role === 'pool') {
+    if (Math.random() < 0.45) say(n, pick(venue.poolTalk || venue.tableTalk), 2);
+    if (n.cup) { n.sipTo = 1; later(1.5, () => { n.sipTo = 0; }); }
   } else if (n.cup && n.role !== 'couple') {
     n.sipTo = 1; later(1.5, () => { n.sipTo = 0; });
     if (Math.random() < 0.3) say(n, pick(venue.tableTalk), 2);
@@ -1762,6 +1811,7 @@ function frame(nowMs) {
       p.bubble.material.opacity = sameSide && Math.hypot(p.x - player.x, p.z - player.z) < 13 ? 1 : 0;
     }
   }
+  poolTick();
   for (const p of everyone) if (p.cup) holdCup(p, p.cup);
   updateLyrics();
   if (drummerRef) {

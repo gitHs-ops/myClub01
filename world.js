@@ -28,6 +28,14 @@ export function useJazzLayout() {
 }
 TABLES.forEach((T) => { T.top = 1.1; T.seats = []; });
 export const BAR_SPOTS = [-12.5, -10, -7.5, -5, -2.5, 0].map((z) => ({ x: 10.2, z, by: null }));
+/* 7080 당구 코너: 당구대가 놓인 자리와 사람이 설 자리. 당구대가 없는 무대에서는 on이 false */
+export const POOL_AREA = { on: false, x: -11.3, z: -15.3, hx: 0.9, hz: 1.52 };
+export const POOL_SPOTS = [
+  { x: -12.6, z: -15.9, yaw: 1.14, shooter: true },    // 치는 사람: 당구대 왼쪽에 붙어 선다
+  { x: -9.75, z: -14.5, yaw: -2.0 },                   // 구경 1: 의자 쪽
+  { x: -12.95, z: -14.1, yaw: 2.2 },                   // 구경 2: 큐 걸이 쪽
+];
+export const POOL_STATE = { phase: 'aim', shot: 0, sunk: 0 };   // 당구대 쪽에서 갱신, 사람 쪽에서 읽는다
 
 function glowTexture() {
   const c = document.createElement('canvas'); c.width = c.height = 128;
@@ -394,7 +402,8 @@ function buildLpStage(inside, updaters, flare) {
    무대 왼쪽 구석. 공은 간단한 물리(마찰·쿠션 반사·공끼리 충돌)로 굴러가고,
    한 판이 끝나면 다시 삼각형으로 모아 놓는다 */
 function buildBilliards(inside, updaters, flare) {
-  const g = new THREE.Group(); g.position.set(-11.3, 0, -15.3); inside.add(g);
+  POOL_AREA.on = true;
+  const g = new THREE.Group(); g.position.set(POOL_AREA.x, 0, POOL_AREA.z); inside.add(g);
   const wood = std(0x5a3418, { roughness: 0.42 }), dark = std(0x2b180c, { roughness: 0.5 });
   const felt = std(0x15603c, { roughness: 0.97 }), chrome = std(0xd6d3d1, { roughness: 0.25, metalness: 0.85 });
   const brass = std(0xc9a227, { roughness: 0.3, metalness: 0.8 }), hole = std(0x07070a, { roughness: 1 });
@@ -473,6 +482,7 @@ function buildBilliards(inside, updaters, flare) {
 
   /* 한 판: 겨누기 → 치기 → 굴러가기 → 잠시 쉬고 다시 모으기 */
   let phase = 'aim', phT = 0;
+  const setPhase = (ph) => { phase = ph; phT = 0; POOL_STATE.phase = ph; };
   updaters.push((dt, t, clock) => {
     if (!inside.visible) return;
     phT += dt;
@@ -485,7 +495,7 @@ function buildBilliards(inside, updaters, flare) {
       if (phT > 2.4) {
         const a = rand(-0.09, 0.09), v = rand(4.3, 5.4);
         balls[0].vx = Math.sin(a) * v; balls[0].vz = Math.cos(a) * v;
-        phase = 'roll'; phT = 0; cue.visible = false;
+        POOL_STATE.shot++; setPhase('roll'); cue.visible = false;
       }
     } else if (phase === 'roll') {
       let moving = false;
@@ -496,7 +506,7 @@ function buildBilliards(inside, updaters, flare) {
         // 포켓은 쿠션에 부딪히기 전에 먼저 본다
         let sunk = false;
         for (const [px, pz] of POCKETS) if (Math.hypot(p.x - px, p.z - pz) < 0.09) { sunk = true; break; }
-        if (sunk) { b.in = false; b.m.visible = false; b.vx = 0; b.vz = 0; continue; }
+        if (sunk) { b.in = false; b.m.visible = false; b.vx = 0; b.vz = 0; POOL_STATE.sunk++; continue; }
         if (p.x < -BX + R) { p.x = -BX + R; b.vx = Math.abs(b.vx) * 0.92; }
         if (p.x > BX - R) { p.x = BX - R; b.vx = -Math.abs(b.vx) * 0.92; }
         if (p.z < -BZ + R) { p.z = -BZ + R; b.vz = Math.abs(b.vz) * 0.92; }
@@ -523,8 +533,8 @@ function buildBilliards(inside, updaters, flare) {
         a.vx -= rel * nx; a.vz -= rel * nz; c.vx += rel * nx; c.vz += rel * nz;
         moving = true;
       }
-      if (!moving || phT > 14) { phase = 'rest'; phT = 0; }
-    } else if (phT > 2.6) { rack(); phase = 'aim'; phT = 0; }
+      if (!moving || phT > 14) setPhase('rest');
+    } else if (phT > 2.6) { rack(); POOL_STATE.sunk = 0; setPhase('aim'); }
   });
 }
 
