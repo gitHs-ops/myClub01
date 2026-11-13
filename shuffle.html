@@ -11,7 +11,7 @@
 <link rel="stylesheet" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css?v=13">
-<link rel="stylesheet" href="shuffle.css?v=1">
+<link rel="stylesheet" href="shuffle.css?v=2">
 </head>
 <body class="shufflePage">
 <canvas id="scene" aria-label="3D 댄스 연습실 화면. 끌어서 돌려 볼 수 있습니다"></canvas>
@@ -21,6 +21,7 @@
   <div class="glass sChip sViewers" id="viewers"></div>
   <div class="sRight">
     <button class="glass sChip" id="btnLessons">수업 목록</button>
+    <button class="glass sChip" id="btnStep" aria-pressed="false">동작 분해</button>
     <button class="glass sChip" id="btnView">시점: 정면</button>
     <button class="glass sChip" id="btnMirror" aria-pressed="true">거울 모드 켬</button>
     <button class="glass sChip" id="btnMetro" aria-pressed="true">박자음 켬</button>
@@ -52,6 +53,25 @@
   </div>
   <div class="counts" id="counts" aria-hidden="true"></div>
   <p class="cue" id="cue" aria-live="polite"></p>
+
+  <!-- 동작 분해: 한 박씩 멈춰 보기 -->
+  <div class="stepBar" id="stepBar" hidden>
+    <div class="stepHead">
+      <b id="stepCount">1 / 8</b>
+      <span id="stepPhase">정지</span>
+    </div>
+    <label class="stepFineWrap">
+      <small>박 안에서 천천히</small>
+      <input type="range" id="stepFine" min="0" max="100" value="0" aria-label="한 박 안에서 자세 이동">
+    </label>
+    <div class="stepBtns">
+      <button class="btn" id="stepPrev" aria-label="이전 박">◀ 이전 박</button>
+      <button class="btn primary" id="stepAuto">▶ 한 박씩 자동</button>
+      <button class="btn" id="stepNext" aria-label="다음 박">다음 박 ▶</button>
+    </div>
+    <p class="stepHint">카운트 숫자를 눌러 바로 이동할 수 있고, 키보드 ← → 로도 넘깁니다.</p>
+  </div>
+
   <div class="testBar" id="testBar" hidden aria-hidden="true"></div>
   <div class="dBtns">
     <button class="btn primary" id="btnPlay">▶ 시범 시작</button>
@@ -91,6 +111,6 @@
 </div>
 
 <div id="toast" role="status"></div>
-<script type="module" src="shuffle.js?v=1"></script>
+<script type="module" src="shuffle.js?v=2"></script>
 </body>
 </html>

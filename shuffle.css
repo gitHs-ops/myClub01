@@ -67,6 +67,22 @@ body.shufflePage { background: #e9e4f5; --hot: #db2777; --accent-primary: #7c3ae
 .dBtns { display: flex; gap: 8px; justify-content: center; }
 .dBtns .btn { flex: 1; max-width: 220px; }
 
+/* ───────── 동작 분해 ───────── */
+.stepBar { margin: 2px 0 10px; padding: 10px 12px 11px; border-radius: 16px; background: rgba(124, 58, 237, .07); border: 1px solid rgba(124, 58, 237, .16); animation: rise .35s var(--ease) both; }
+.stepHead { display: flex; align-items: baseline; justify-content: center; gap: 10px; margin-bottom: 8px; }
+.stepHead b { font: 800 20px var(--font-accent); color: #7c3aed; letter-spacing: .5px; }
+.stepHead span { font: 700 12px var(--font-main); color: #6d28d9; opacity: .75; }
+.stepFineWrap { display: flex; align-items: center; gap: 9px; margin-bottom: 9px; }
+.stepFineWrap small { flex: 0 0 auto; font: 700 11px var(--font-main); color: #6d28d9; opacity: .8; white-space: nowrap; }
+.stepFineWrap input[type=range] { flex: 1; width: 100%; }
+.stepBtns { display: flex; gap: 7px; justify-content: center; }
+.stepBtns .btn { flex: 1; padding-left: 4px; padding-right: 4px; font-size: 13px; }
+.stepHint { margin: 8px 0 0; font: 500 11px var(--font-main); color: #5b21b6; opacity: .62; }
+.counts span.pick { cursor: pointer; }
+.counts span.pick:hover { background: rgba(124, 58, 237, .2); }
+.sChip.on { background: linear-gradient(135deg, #7c3aed, #db2777); color: #fff; border-color: transparent; }
+.btn[disabled] { opacity: .4; pointer-events: none; }
+
 #pad { position: fixed; left: 50%; margin-left: -58px; bottom: calc(196px + env(safe-area-inset-bottom)); width: 116px; height: 116px; border-radius: 50%; z-index: 6; border: 3px solid rgba(255, 255, 255, .9); color: #fff; font: 800 22px var(--font-accent); letter-spacing: 1px; cursor: pointer; background: radial-gradient(circle at 35% 30%, #a78bfa, #7c3aed 55%, #db2777); box-shadow: 0 16px 34px rgba(124, 58, 237, .45); display: flex; flex-direction: column; align-items: center; justify-content: center; touch-action: manipulation; }
 #pad small { font: 600 10.5px var(--font-main); opacity: .85; letter-spacing: 0; }
 #pad.hit { animation: padHit .22s ease-out; }
@@ -107,6 +123,9 @@ kbd { font: 700 11px var(--font-accent); padding: 2px 6px; border-radius: 6px; b
   .dName strong { font-size: 15px; }
   .counts span { height: 32px; font-size: 15px; }
   .cue { font-size: 14px; }
+  .stepHead b { font-size: 17px; }
+  .stepBtns .btn { font-size: 12px; }
+  .stepHint { display: none; }
   #pad { width: 92px; height: 92px; margin-left: -46px; bottom: 236px; font-size: 18px; }
   .dTop { flex-wrap: wrap; }
 }

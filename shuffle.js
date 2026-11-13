@@ -196,6 +196,9 @@ canvas.addEventListener('wheel', (e) => { camTo.dist = Math.min(11, Math.max(2.6
 const edm = new Edm();
 const LESSON_FORM = [{ name: 'groove', bars: 2, energy: 0.6 }, { name: 'drop', bars: 30, energy: 1 }];
 let lesson = LI.runningman, playing = false, tickN = -1;
+/* 동작 분해: 코치를 한 박에 세워 두고 자세를 하나씩 본다 */
+let stepMode = false, stepBase = 0, stepFine = 0, stepBeat = 0, stepAuto = false, stepAutoT = 0;
+const STEP_HOLD = 1.0, STEP_GLIDE = 0.7;  // 자동 재생: 한 박 멈춤(초) → 다음 박으로 이동(초)
 function restartMusic() {
   if (!edm.started) return;
   const base = TRACKS.find((t) => t.id === db.music) || TRACKS[0], m = MUSIC.find((x) => x.id === db.music) || MUSIC[0];
@@ -299,6 +302,7 @@ function selectLesson(L) {
   db.speed = L.speed; save(); renderSpeed();
   renderLessons(); coachSay(`${L.name}! ${L.desc}`);
   if (playing) restartMusic();
+  if (stepMode) stepGo(0, false);
   if (innerWidth < 760) $('side').classList.remove('open');
 }
 function renderSpeed() {
@@ -312,7 +316,55 @@ function renderMusic() {
   MUSIC.forEach((m) => { const b = document.createElement('button'); b.textContent = m.name; b.className = m.id === db.music ? 'on' : ''; b.onclick = () => { db.music = m.id; save(); renderMusic(); renderSpeed(); if (playing) restartMusic(); }; box.append(b); });
 }
 const countCells = [];
-for (let i = 0; i < 8; i++) { const c = document.createElement('span'); c.textContent = i + 1; $('counts').append(c); countCells.push(c); }
+for (let i = 0; i < 8; i++) {
+  const c = document.createElement('span'); c.textContent = i + 1;
+  c.onclick = () => { if (stepMode) stepGo(i, false); };   // 분해 모드에서는 눌러서 그 박으로 이동
+  $('counts').append(c); countCells.push(c);
+}
+
+/* ───────── 동작 분해 ─────────
+   음악을 끄고 코치의 자세를 한 박(또는 박 안의 한 지점)에 세워 둔다.
+   사람의 자세는 clock.beat 하나로 정해지므로 beat를 고정하면 그 순간의 자세가 그대로 멈춘다 */
+function renderStep() {
+  countCells.forEach((el, i) => el.classList.toggle('on', stepMode && i === stepBase));
+  if (!stepMode) return;
+  $('stepCount').textContent = `${stepBase + 1} / 8 박`;
+  $('stepPhase').textContent = stepAuto ? (stepFine > 0.02 ? '다음 박으로 이동 중' : '멈춤') : (stepFine > 0.02 ? `박 안 ${Math.round(stepFine * 100)}%` : '정지');
+  $('cue').textContent = cueAt(lesson, stepBase);
+  $('stepAuto').textContent = stepAuto ? '❚❚ 자동 멈춤' : '▶ 한 박씩 자동';
+  $('stepAuto').classList.toggle('on', stepAuto);
+}
+function stepGo(base, keepAuto) {
+  stepBase = ((base % 8) + 8) % 8; stepFine = 0; stepBeat = stepBase;
+  if (!keepAuto) { stepAuto = false; stepAutoT = 0; }
+  $('stepFine').value = 0;
+  stepTick();
+  renderStep();
+}
+function stepTick() {   // 박이 바뀔 때 짧은 박자음 (소리를 켠 상태에서만)
+  if (!db.metro || !edm.started) return;
+  try { tick(edm.ctx.currentTime + 0.02, stepBase === 0); } catch { /* 소리 없이 진행 */ }
+}
+function setStep(on) {
+  stepMode = on; stepAuto = false; stepAutoT = 0;
+  $('btnStep').textContent = on ? '분해 끄기' : '동작 분해';
+  $('btnStep').classList.toggle('on', on);
+  $('btnStep').setAttribute('aria-pressed', String(on));
+  $('stepBar').hidden = !on;
+  $('btnPlay').disabled = on; $('btnTest').disabled = on;
+  countCells.forEach((el) => el.classList.toggle('pick', on));
+  if (on) {
+    if (playing) setPlaying(false);
+    test = null; $('testBar').hidden = true; $('pad').hidden = true;
+    stepGo(0, false);
+    coachSay(`${lesson.name}을 한 박씩 끊어서 볼게요. 자세를 멈춰 둘 테니 발 위치부터 확인해 보세요.`);
+    toast('동작 분해: 다음 박을 눌러 자세를 하나씩 확인하세요');
+  } else {
+    lastCount = -99; countCells.forEach((el) => el.classList.remove('on'));
+    $('cue').textContent = '▶ 시범 시작을 누르세요';
+    coachSay(`다시 이어서 춰 볼까요? ${lesson.name}, 시범 시작을 눌러 주세요.`);
+  }
+}
 
 // 온라인 채팅
 const CHAT = [['지민', '러닝맨 무릎 너무 힘들어요ㅠ'], ['하준', '60%로 하니까 되네요!'], ['서연', '선생님 T스텝 한 번만 더요🙏'], ['민호', '거울 모드 좋아요'], ['수아', '층간소음 때문에 양말 신고 해요ㅋㅋ'], ['도윤', '콤보 수료했습니다!!'], ['예린', '발 보기 시점 꿀팁'], ['태오', '박자 테스트 82점 나왔어요'], ['지민', '찰스턴 왼발 오른발 헷갈려요'], ['서연', '오늘도 땀 쭉 뺐다']];
@@ -332,6 +384,11 @@ $('btnPlay').onclick = () => setPlaying(!playing);
 $('btnTest').onclick = startTest;
 $('btnMirror').onclick = () => { db.mirror = !db.mirror; save(); applyMirror(); toast(db.mirror ? '거울 모드: 화면을 보고 그대로 따라 하세요' : '거울 모드 끔: 코치의 실제 왼발·오른발'); };
 $('btnView').onclick = () => setView((viewI + 1) % VIEWS.length);
+$('btnStep').onclick = () => setStep(!stepMode);
+$('stepPrev').onclick = () => stepGo(stepBase - 1, false);
+$('stepNext').onclick = () => stepGo(stepBase + 1, false);
+$('stepAuto').onclick = () => { stepAuto = !stepAuto; stepAutoT = 0; if (stepAuto) { stepFine = 0; $('stepFine').value = 0; } renderStep(); };
+$('stepFine').oninput = (e) => { stepAuto = false; stepFine = +e.target.value / 100; stepBeat = stepBase + stepFine; renderStep(); };
 $('btnMetro').onclick = () => { db.metro = !db.metro; save(); $('btnMetro').textContent = db.metro ? '박자음 켬' : '박자음 끔'; $('btnMetro').setAttribute('aria-pressed', String(db.metro)); };
 $('btnLessons').onclick = () => $('side').classList.toggle('open');
 $('sideX').onclick = () => $('side').classList.remove('open');
@@ -348,7 +405,9 @@ addEventListener('keydown', (e) => {
     if (!$('intro').hidden) return;
     if (!$('resultModal').hidden) return;
     tap();
-  } else if (e.key === 'Escape') { closeResult(); $('side').classList.remove('open'); }
+  } else if (stepMode && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
+    e.preventDefault(); stepGo(stepBase + (e.key === 'ArrowRight' ? 1 : -1), false);
+  } else if (e.key === 'Escape') { if (stepMode) setStep(false); closeResult(); $('side').classList.remove('open'); }
 });
 $('btnMetro').textContent = db.metro ? '박자음 켬' : '박자음 끔';
 applyMirror(); renderLessons(); renderSpeed(); renderMusic(); setView(0); selectLesson(lesson);
@@ -359,15 +418,28 @@ let last = performance.now(), lastCount = -1, lastTip = -1;
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   const t = now / 1000;
-  const b = playing && edm.started ? beatNow() : 0;
+  // 동작 분해 자동 재생: 한 박 멈췄다가 다음 박으로 천천히 넘어간다
+  if (stepMode && stepAuto) {
+    stepAutoT += dt;
+    const CYC = STEP_HOLD + STEP_GLIDE;
+    if (stepAutoT >= CYC) { stepAutoT -= CYC; stepBase = (stepBase + 1) % 8; stepTick(); }
+    const u = stepAutoT <= STEP_HOLD ? 0 : (stepAutoT - STEP_HOLD) / STEP_GLIDE;
+    stepFine = u <= 0 ? 0 : u * u * (3 - 2 * u);
+    stepBeat = stepBase + stepFine;
+    $('stepFine').value = Math.round(stepFine * 100);
+    renderStep();
+  }
+  const b = stepMode ? stepBeat : (playing && edm.started ? beatNow() : 0);
   const clock = { beat: b };
   // 춤: 코치와 앞줄은 수업 동작, 나는 STEP을 누를 때만 따라 춘다
   const st = styleAt(lesson, b);
-  [coach, backL, backR].forEach((p) => { p.danceStyle = st; p.danceTo = playing && b >= 0 ? 1 : 0; });
+  [coach, backL, backR].forEach((p) => { p.danceStyle = st; p.danceTo = stepMode || (playing && b >= 0) ? 1 : 0; });
   me.danceStyle = st; me.danceTo = playing && (me.tapUntil || 0) > t ? 1 : 0;
   dancers.forEach((p) => updatePerson(p, dt, t, clock, null));
   // 카운트와 동작 안내
-  if (playing && edm.started) {
+  if (stepMode) {
+    /* 카운트와 안내는 renderStep()이 맡는다 */
+  } else if (playing && edm.started) {
     const n = Math.floor(b);
     if (n !== lastCount) {
       lastCount = n;
@@ -396,11 +468,11 @@ function frame(now) {
   if (sz > 0.01) d = Math.min(d, (RD / 2 - 0.5 - CENTER.z) / sz);
   camera.position.set(CENTER.x + sx * d, cam.ty + Math.sin(cam.el) * d, CENTER.z + sz * d);
   camera.lookAt(CENTER.x, cam.ty, CENTER.z);
-  markM.opacity = 0.25 + (playing ? 0.25 * Math.exp(-(((b % 1) + 1) % 1) * 5) : 0);
+  markM.opacity = 0.25 + (playing || stepMode ? 0.25 * Math.exp(-(((b % 1) + 1) % 1) * 5) : 0);
   scene.userData.rec.visible = Math.floor(t * 1.4) % 2 === 0;
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
 
-window.shuffle = { edm, coach, me, scene, camera, renderer, state: () => ({ playing, lesson: lesson.id, speed: db.speed, beat: beatNow(), test: test && { hits: test.hits.size, done: test.done } }), beatNow, tap, LESSONS };
+window.shuffle = { edm, coach, me, scene, camera, renderer, state: () => ({ playing, lesson: lesson.id, speed: db.speed, beat: beatNow(), step: stepMode && { base: stepBase, fine: +stepFine.toFixed(3), auto: stepAuto }, test: test && { hits: test.hits.size, done: test.done } }), beatNow, tap, setStep, stepGo, LESSONS };
