@@ -281,6 +281,7 @@ export function updatePerson(p, dt, t, clock, collide) {
   const pulse = Math.abs(Math.sin(Math.PI * b));                 // 박마다 0→1→0
   const dip = 1 - pulse, sway = Math.sin(Math.PI * b), half = Math.sin((Math.PI * b) / 2);
   let hipX = 0, hipY = 0, twist = 0, lean = 0, rollZ = 0, nod = 0, stepL = 0, stepR = 0;
+  let slideL = 0, slideR = 0;   // 디딘 발이 바닥을 비비며 뒤로 밀리는 양 (러닝맨)
   let armL = [0, 0.1, 0, -0.14], armR = [0, 0.1, 0, -0.14];
 
   if (k > 0.005) {
@@ -300,6 +301,11 @@ export function updatePerson(p, dt, t, clock, collide) {
     } else if (S === 6) {  // 셔플: 러닝맨(무릎을 번갈아 올리며 디딘 발은 뒤로 미끄러짐) + T스텝(발끝을 안팎으로 튼다)
       const run = sway, bob = Math.abs(Math.sin(Math.PI * b * 2));
       stepL = Math.max(0, run) * 0.26; stepR = Math.max(0, -run) * 0.26;
+      // 러닝맨의 핵심: 무릎을 올리는 동안 디딘 발은 바닥을 비비며 한 박에 걸쳐 뒤로 밀린다.
+      // 든 발은 박이 바뀌자마자 앞으로 되돌아온다 (박 경계에서 값이 이어지도록 맞췄다)
+      const ph = ((b % 1) + 1) % 1, plant = ph, back = Math.max(0, 1 - ph * 3);
+      const evenBeat = ((Math.floor(b) % 2) + 2) % 2 === 0;   // 짝수 박은 왼 무릎이 올라가고 오른발이 디딘 발
+      slideL = evenBeat ? back : plant; slideR = evenBeat ? plant : back;
       hipY = -0.05 - (1 - bob) * 0.035; hipX = half * 0.11; lean = 0.14; twist = -run * 0.12; nod = (1 - bob) * 0.12; rollZ = half * 0.04;
       armL = [-0.75 + run * 0.55, 0.22, 0, -1.45]; armR = [-0.75 - run * 0.55, 0.22, 0, -1.45];
     } else if (S === 7) {  // 찰스턴: 한 발로 앞뒤로 차며 허리를 비튼다
@@ -374,16 +380,18 @@ export function updatePerson(p, dt, t, clock, collide) {
     return [-a, a * 2];
   };
   const tuck = air * 0.75;
-  const legPose = (s, step) => {
+  const legPose = (s, step, slide = 0) => {
     const leg = p.legs[s], phase = p.walkPhase + (s > 0 ? Math.PI : 0), sw = Math.sin(phase) * 0.62 * p.walk;
     const [tx, kx] = crouchIK(-hipY);
     const lift = Math.max(0, Math.cos(phase)) * 0.72 * p.walk;
-    leg.t.rotation.x = tx - sw - step * 1.7 - tuck;
-    leg.k.rotation.x = kx + lift + step * 3 + tuck * 1.4;
+    const th = tx - sw - step * 1.7 - tuck + slide * 0.52;        // 허벅지를 뒤로 보내 발이 뒤로 밀리게
+    const kn = Math.max(0, kx + lift + step * 3 + tuck * 1.4 - slide * 0.16);
+    leg.t.rotation.x = th;
+    leg.k.rotation.x = kn;
     leg.t.rotation.z = s * (0.035 + 0.05 * p.dance);
-    leg.f.rotation.x = -(tx - sw - step * 1.7 - tuck + kx + lift + step * 3 + tuck * 1.4) * 0.9;
+    leg.f.rotation.x = -(th + kn) * 0.9;                           // 발바닥은 바닥에 붙여 둔다
   };
-  legPose(-1, stepR * k); legPose(1, stepL * k);
+  legPose(-1, stepR * k, slideR * k); legPose(1, stepL * k, slideL * k);
   if (S === 6 && !p.sit) {   // 셔플: 디딘 다리는 발끝을 안팎으로 튼다 (T스텝), 들린 다리는 앞으로 찬다
     const tw = Math.sin(Math.PI * b * 2) * 0.42 * Math.min(1, k);
     p.legs[-1].t.rotation.y = -tw * (stepR > 0.02 ? 0.2 : 1); p.legs[1].t.rotation.y = tw * (stepL > 0.02 ? 0.2 : 1);

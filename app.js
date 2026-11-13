@@ -1,6 +1,6 @@
 import * as THREE from './vendor/three.min.js';
 import { Edm, TRACKS } from './edm.js?v=8';
-import { makePerson, updatePerson, goTo, say, jump, setWardrobe } from './people.js?v=11';
+import { makePerson, updatePerson, goTo, say, jump, setWardrobe } from './people.js?v=12';
 import { buildWorld, ROOM, FLOOR, TABLES, BAR_SPOTS, POOL_AREA, POOL_SPOTS, POOL_STATE } from './world.js?v=16';
 import { VENUES } from './venues.js?v=7';
 import { listTracks, addTrack, putTrack, removeTrack, isAudioFile, titleOf, analyze, isLrcFile, readText, decodeText, lyricLines, id3Lyrics } from './mylist.js?v=2';
