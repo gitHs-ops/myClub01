@@ -390,6 +390,144 @@ function buildLpStage(inside, updaters, flare) {
   const rp = add(new THREE.PlaneGeometry(9, 2.6), new THREE.MeshStandardMaterial({ map: rug, roughness: 0.95 }), 0, 1.153, -20.3, inside); rp.rotation.x = -Math.PI / 2;
 }
 
+/* ───── 7080 당구 코너 ─────
+   무대 왼쪽 구석. 공은 간단한 물리(마찰·쿠션 반사·공끼리 충돌)로 굴러가고,
+   한 판이 끝나면 다시 삼각형으로 모아 놓는다 */
+function buildBilliards(inside, updaters, flare) {
+  const g = new THREE.Group(); g.position.set(-11.3, 0, -15.3); inside.add(g);
+  const wood = std(0x5a3418, { roughness: 0.42 }), dark = std(0x2b180c, { roughness: 0.5 });
+  const felt = std(0x15603c, { roughness: 0.97 }), chrome = std(0xd6d3d1, { roughness: 0.25, metalness: 0.85 });
+  const brass = std(0xc9a227, { roughness: 0.3, metalness: 0.8 }), hole = std(0x07070a, { roughness: 1 });
+  const H = 0.78, TOP = 0.98;                       // 다리 높이 / 천 윗면
+  const R = 0.028, BX = 0.6, BZ = 1.235;            // 공 반지름 / 쿠션 안쪽 경계
+
+  // 다리와 몸체
+  [[-0.58, -1.16], [0.58, -1.16], [-0.58, 1.16], [0.58, 1.16]].forEach(([x, z]) => {
+    box(0.17, H, 0.17, dark, x, H / 2, z, g);
+    box(0.21, 0.08, 0.21, brass, x, 0.04, z, g);
+  });
+  box(1.56, 0.16, 2.82, wood, 0, H + 0.08, 0, g);
+  box(1.3, 0.04, 2.56, felt, 0, H - 0.02 + 0.04, 0, g);   // 천 (윗면 0.98)
+  // 쿠션
+  [[-0.69, 0, 0.14, 2.82], [0.69, 0, 0.14, 2.82]].forEach(([x, z, w, d]) => box(w, 0.09, d, wood, x, TOP + 0.045, z, g));
+  [[0, -1.41], [0, 1.41]].forEach(([x, z]) => box(1.56, 0.09, 0.14, wood, x, TOP + 0.045, z, g));
+  [[-0.62, 0, 0.02, 2.5], [0.62, 0, 0.02, 2.5]].forEach(([x, z, w, d]) => box(w, 0.07, d, felt, x, TOP + 0.035, z, g));
+  [[0, -1.3], [0, 1.3]].forEach(([x, z]) => box(1.24, 0.07, 0.02, felt, x, TOP + 0.035, z, g));
+  // 포켓 여섯
+  const POCKETS = [[-BX, -BZ], [BX, -BZ], [-BX, BZ], [BX, BZ], [-BX, 0], [BX, 0]];
+  POCKETS.forEach(([x, z]) => {
+    const p = add(new THREE.CircleGeometry(0.062, 18), hole, x, TOP + 0.006, z, g); p.rotation.x = -Math.PI / 2;
+    add(new THREE.TorusGeometry(0.062, 0.012, 8, 20), brass, x, TOP + 0.01, z, g).rotation.x = -Math.PI / 2;
+  });
+  // 공: 흰 공 하나 + 색 공 열
+  const COLORS = [0xf2c200, 0x1d4ed8, 0xdc2626, 0x6d28d9, 0xea580c, 0x166534, 0x7f1d1d, 0x111111, 0xf2c200, 0x1d4ed8];
+  const ballOf = (c) => add(new THREE.SphereGeometry(R, 14, 12), std(c, { roughness: 0.18, metalness: 0.1 }), 0, TOP + R, 0, g);
+  const cueBall = ballOf(0xf6f3ea);
+  const balls = [{ m: cueBall, cue: true }, ...COLORS.map((c) => ({ m: ballOf(c) }))];
+  balls.forEach((b) => { b.vx = 0; b.vz = 0; b.in = true; });
+  const rack = () => {
+    balls[0].m.position.set(0, TOP + R, -0.78);
+    let k = 1;
+    for (let row = 0; row < 4; row++) for (let j = 0; j <= row; j++) {
+      if (k >= balls.length) break;
+      balls[k].m.position.set((j - row / 2) * 0.059, TOP + R, 0.62 + row * 0.051); k++;
+    }
+    balls.forEach((b) => { b.vx = 0; b.vz = 0; b.in = true; b.m.visible = true; });
+  };
+  rack();
+
+  // 큐대: 흰 공 뒤에서 당겼다가 친다
+  const cue = new THREE.Group(); g.add(cue);
+  const shaft = add(new THREE.CylinderGeometry(0.009, 0.016, 1.45, 10), std(0xb8865a, { roughness: 0.4 }), 0, 0, -0.72, cue);
+  shaft.rotation.x = Math.PI / 2;
+  add(new THREE.CylinderGeometry(0.0165, 0.018, 0.3, 10), std(0x2a1a10, { roughness: 0.45 }), 0, 0, -1.3, cue).rotation.x = Math.PI / 2;
+  add(new THREE.CylinderGeometry(0.009, 0.009, 0.015, 10), std(0x3b82f6, { roughness: 0.7 }), 0, 0, -0.015, cue).rotation.x = Math.PI / 2;
+  cue.position.set(0, TOP + R, -0.78);
+
+  // 천장 등 + 벽 쪽 소품
+  box(0.46, 0.2, 1.7, std(0x2a1a12, { roughness: 0.5 }), 0, 1.98, 0, g);
+  const shade = box(0.42, 0.03, 1.62, glow(0xffdca8), 0, 1.87, 0, g);
+  [-0.6, 0.6].forEach((z) => add(new THREE.CylinderGeometry(0.006, 0.006, 1.2, 6), std(0x15100c), 0, 2.68, z, g));
+  const lamp = flare(0xffc27a, 4.6, 0, 1.8, 0, g, 0.55);
+  const lampLight = new THREE.PointLight(0xffc98a, 11, 7, 1.7); lampLight.position.set(0, 1.78, 0); g.add(lampLight);
+  // 큐 걸이와 초크
+  box(0.12, 0.1, 0.9, std(0x3a2212, { roughness: 0.5 }), -2.55, 1.55, 0, g);
+  [-0.34, -0.12, 0.12, 0.34].forEach((z, i) => {
+    const c = add(new THREE.CylinderGeometry(0.009, 0.016, 1.45, 8), std(i % 2 ? 0xa9784e : 0xb8865a, { roughness: 0.4 }), -2.5, 0.78, z, g);
+    c.rotation.x = 0.08; c.rotation.z = (i - 1.5) * 0.03;
+  });
+  box(0.05, 0.05, 0.05, std(0x1f6f4a, { roughness: 0.9 }), -0.69, TOP + 0.1, -1.1, g);   // 초크
+  // 점수 주판 (그 시절 당구장 구슬)
+  add(new THREE.CylinderGeometry(0.004, 0.004, 1.5, 6), chrome, -2.52, 2.1, 0, g).rotation.x = Math.PI / 2;
+  for (let i = 0; i < 12; i++) add(new THREE.SphereGeometry(0.03, 8, 6), i < 7 ? brass : std(0xb91c1c, { roughness: 0.5 }), -2.52, 2.1, -0.66 + i * (i < 7 ? 0.065 : 0.075), g);
+  // 간판
+  const sign = add(new THREE.PlaneGeometry(1.15, 0.58), neonText('당구 한 판', '800 110px Pretendard, "Malgun Gothic", sans-serif', '#ffe9b8', '#ff9d2e'), -2.58, 2.75, 0, g);
+  sign.rotation.y = Math.PI / 2;
+  flare(0xff9d2e, 2.6, -2.5, 2.75, 0, g, 0.4);
+  // 구경하는 자리: 둥근 의자 둘
+  [[1.35, -0.75], [1.35, 0.75]].forEach(([x, z]) => {
+    add(new THREE.CylinderGeometry(0.21, 0.19, 0.08, 16), std(0x7f1d1d, { roughness: 0.75 }), x, 0.74, z, g);
+    add(new THREE.CylinderGeometry(0.04, 0.04, 0.7, 10), chrome, x, 0.35, z, g);
+    add(new THREE.CylinderGeometry(0.22, 0.22, 0.03, 16), chrome, x, 0.02, z, g);
+  });
+
+  /* 한 판: 겨누기 → 치기 → 굴러가기 → 잠시 쉬고 다시 모으기 */
+  let phase = 'aim', phT = 0;
+  updaters.push((dt, t, clock) => {
+    if (!inside.visible) return;
+    phT += dt;
+    shade.material.color.setHSL(0.09, 0.6, 0.62 + Math.sin(clock.beat * Math.PI) * 0.06);
+    lamp.material.opacity = 0.5 + Math.sin(clock.beat * Math.PI) * 0.07;
+    if (phase === 'aim') {
+      const cb = balls[0].m.position;
+      cue.visible = true;
+      cue.position.set(cb.x, TOP + R, cb.z - 0.06 - Math.abs(Math.sin(phT * 1.9)) * 0.22);
+      if (phT > 2.4) {
+        const a = rand(-0.09, 0.09), v = rand(4.3, 5.4);
+        balls[0].vx = Math.sin(a) * v; balls[0].vz = Math.cos(a) * v;
+        phase = 'roll'; phT = 0; cue.visible = false;
+      }
+    } else if (phase === 'roll') {
+      let moving = false;
+      for (const b of balls) {
+        if (!b.in) continue;
+        const p = b.m.position;
+        p.x += b.vx * dt; p.z += b.vz * dt;
+        // 포켓은 쿠션에 부딪히기 전에 먼저 본다
+        let sunk = false;
+        for (const [px, pz] of POCKETS) if (Math.hypot(p.x - px, p.z - pz) < 0.09) { sunk = true; break; }
+        if (sunk) { b.in = false; b.m.visible = false; b.vx = 0; b.vz = 0; continue; }
+        if (p.x < -BX + R) { p.x = -BX + R; b.vx = Math.abs(b.vx) * 0.92; }
+        if (p.x > BX - R) { p.x = BX - R; b.vx = -Math.abs(b.vx) * 0.92; }
+        if (p.z < -BZ + R) { p.z = -BZ + R; b.vz = Math.abs(b.vz) * 0.92; }
+        if (p.z > BZ - R) { p.z = BZ - R; b.vz = -Math.abs(b.vz) * 0.92; }
+        const f = Math.exp(-0.52 * dt);                     // 천 마찰
+        b.vx *= f; b.vz *= f;
+        if (Math.hypot(b.vx, b.vz) < 0.03) { b.vx = 0; b.vz = 0; } else {
+          moving = true;
+          b.m.rotation.x += b.vz * dt / R * 0.5; b.m.rotation.z -= b.vx * dt / R * 0.5;
+        }
+      }
+      // 공끼리 부딪히기 (같은 무게로 단순하게)
+      for (let i = 0; i < balls.length; i++) for (let j = i + 1; j < balls.length; j++) {
+        const a = balls[i], c = balls[j];
+        if (!a.in || !c.in) continue;
+        const dx = c.m.position.x - a.m.position.x, dz = c.m.position.z - a.m.position.z;
+        const d = Math.hypot(dx, dz);
+        if (d > R * 2 || d < 1e-5) continue;
+        const nx = dx / d, nz = dz / d, push = (R * 2 - d) / 2;
+        a.m.position.x -= nx * push; a.m.position.z -= nz * push;
+        c.m.position.x += nx * push; c.m.position.z += nz * push;
+        const rel = (a.vx - c.vx) * nx + (a.vz - c.vz) * nz;
+        if (rel <= 0) continue;
+        a.vx -= rel * nx; a.vz -= rel * nz; c.vx += rel * nx; c.vz += rel * nz;
+        moving = true;
+      }
+      if (!moving || phT > 14) { phase = 'rest'; phT = 0; }
+    } else if (phT > 2.6) { rack(); phase = 'aim'; phT = 0; }
+  });
+}
+
 export function buildWorld(scene, fxState, theme) {
   if (theme.jazz) useJazzLayout();
   const gt = glowTexture(), bt = beamTexture(), updaters = [];
@@ -522,6 +660,7 @@ export function buildWorld(scene, fxState, theme) {
     strip(12.15, 0.06, 0.05, -7.9, 5.9, 4.82); strip(12.15, 0.06, 0.05, 7.9, 5.9, 4.82);
   } else buildJazzRoom(inside, flare, theme);
   buildBackWall(inside, theme, neonList, updaters, flare);
+  if (theme.band && !theme.jazz) buildBilliards(inside, updaters, flare);   // 7080 전용 당구 코너
 
   // 무대
   const stageM = std(0x09090f, { roughness: 0.3, metalness: 0.5 });
@@ -994,7 +1133,7 @@ export function buildWorld(scene, fxState, theme) {
           v = 0.05 + Math.max(0, 1 - Math.abs(((iz + clock.beat * 3) % NZ) - 2) * 0.5) * 0.9;
         } else if (name === 'drop' && clock.track?.led === 'grid') {
           v = (ix * 7 + iz * 13 + Math.floor(clock.beat * 2) * 5) % 4 === 0 ? 0.85 : 0.06;
-        } else if (name === 'drop') { v = 0.18 + Math.max(0, Math.sin(dist * 0.9 - clock.beat * Math.PI * 2)) ** 3 * 0.86; }
+        } else if (name === 'drop') { v = 0.18 + Math.max(0, Math.sin(dist * 0.9 - clock.beat * Math.PI * 2)) ** 3 * 0.92; }
         else if (name === 'build') { v = (ix + iz + step) % 2 === 0 ? 0.08 + clock.build * 0.75 : 0.03; }
         else if (name === 'break') { v = 0.05 + (0.5 + 0.5 * Math.sin(ix * 0.7 + iz * 0.5 + t * 0.7)) * 0.17; }
         else { v = ((ix + iz * 3 + step) % 5 === 0 ? 0.32 * (0.35 + clock.kick * 0.65) : 0.035) + 0.022; }
