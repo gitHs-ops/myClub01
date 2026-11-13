@@ -78,6 +78,21 @@ body.shufflePage { background: #e9e4f5; --hot: #db2777; --accent-primary: #7c3ae
 .stepBtns { display: flex; gap: 7px; justify-content: center; }
 .stepBtns .btn { flex: 1; padding-left: 4px; padding-right: 4px; font-size: 13px; }
 .stepHint { margin: 8px 0 0; font: 500 11px var(--font-main); color: #5b21b6; opacity: .62; }
+
+/* 분해 모드에서는 코치가 보여야 하므로 조작부를 최대한 납작하게 만든다 */
+body.stepping #dock { padding: 9px 14px 11px; background: rgba(255, 255, 255, .72); backdrop-filter: blur(18px) saturate(1.3); }
+body.stepping .dBtns, body.stepping .stepHint, body.stepping .bpm { display: none; }
+body.stepping .dName strong { font-size: 15px; }
+body.stepping .counts { gap: 4px; margin: 7px 0 3px; }
+body.stepping .counts span { height: 26px; font-size: 13px; border-radius: 8px; }
+body.stepping .counts span.on { transform: scale(1.06); }
+body.stepping .cue { margin: 2px 0 4px; min-height: 18px; font-size: 14px; }
+body.stepping .stepBar { margin: 0; padding: 7px 10px 8px; }
+body.stepping .stepHead { margin-bottom: 5px; }
+body.stepping .stepHead b { font-size: 15px; }
+body.stepping .stepFineWrap { margin-bottom: 6px; }
+body.stepping .stepBtns .btn { padding: 8px 2px; font-size: 12.5px; }
+body.stepping #chat { display: none; }   /* 채팅은 접어 두고 코치에게 집중 */
 .counts span.pick { cursor: pointer; }
 .counts span.pick:hover { background: rgba(124, 58, 237, .2); }
 .sChip.on { background: linear-gradient(135deg, #7c3aed, #db2777); color: #fff; border-color: transparent; }

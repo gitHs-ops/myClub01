@@ -176,10 +176,15 @@ const VIEWS = [
   { name: '발 보기', az: 0.35, el: 0.08, dist: 3.4, ty: 0.45 },
 ];
 let viewI = 0;
+/* 분해 모드 전용 시점: 코치에게 가까이 붙고, 시선을 무릎 높이로 내려
+   화면 위쪽에 몸 전체가 오게 한다 (아래쪽은 조작부가 덮기 때문) */
+const STEP_VIEW = { name: '분해', az: 0.26, el: 0.07, dist: 4.3, ty: 0.92 };
+let lookOff = 0, lookOffTo = 0;
 const cam = { ...VIEWS[0] }, camTo = { ...VIEWS[0] };
 const CENTER = new THREE.Vector3(0, 0, -1.6);
 function setView(i) {
   viewI = i; Object.assign(camTo, VIEWS[i]);
+  if (stepMode) lookOffTo = -camTo.ty * 0.5;   // 분해 중에는 어느 시점이든 몸을 화면 위쪽에 둔다
   $('btnView').textContent = `시점: ${VIEWS[i].name}`;
 }
 let drag = null;
@@ -197,7 +202,9 @@ const edm = new Edm();
 const LESSON_FORM = [{ name: 'groove', bars: 2, energy: 0.6 }, { name: 'drop', bars: 30, energy: 1 }];
 let lesson = LI.runningman, playing = false, tickN = -1;
 /* 동작 분해: 코치를 한 박에 세워 두고 자세를 하나씩 본다 */
-let stepMode = false, stepBase = 0, stepFine = 0, stepBeat = 0, stepAuto = false, stepAutoT = 0;
+/* 정수 박은 동작이 스쳐 지나가는 지점이라 자세가 밋밋하다.
+   그래서 기본은 박의 한가운데(+0.5)를 보여 주고, 슬라이더로 박 처음~끝을 훑는다 */
+let stepMode = false, stepBase = 0, stepFine = 0.5, stepBeat = 0.5, stepAuto = false, stepAutoT = 0;
 const STEP_HOLD = 1.0, STEP_GLIDE = 0.7;  // 자동 재생: 한 박 멈춤(초) → 다음 박으로 이동(초)
 function restartMusic() {
   if (!edm.started) return;
@@ -329,15 +336,15 @@ function renderStep() {
   countCells.forEach((el, i) => el.classList.toggle('on', stepMode && i === stepBase));
   if (!stepMode) return;
   $('stepCount').textContent = `${stepBase + 1} / 8 박`;
-  $('stepPhase').textContent = stepAuto ? (stepFine > 0.02 ? '다음 박으로 이동 중' : '멈춤') : (stepFine > 0.02 ? `박 안 ${Math.round(stepFine * 100)}%` : '정지');
+  $('stepPhase').textContent = stepAuto ? (stepFine > 0.52 ? '다음 박으로 이동 중' : '멈춤') : `박 안 ${Math.min(100, Math.round(stepFine * 100))}%`;
   $('cue').textContent = cueAt(lesson, stepBase);
   $('stepAuto').textContent = stepAuto ? '❚❚ 자동 멈춤' : '▶ 한 박씩 자동';
   $('stepAuto').classList.toggle('on', stepAuto);
 }
 function stepGo(base, keepAuto) {
-  stepBase = ((base % 8) + 8) % 8; stepFine = 0; stepBeat = stepBase;
+  stepBase = ((base % 8) + 8) % 8; stepFine = 0.5; stepBeat = stepBase + 0.5;
   if (!keepAuto) { stepAuto = false; stepAutoT = 0; }
-  $('stepFine').value = 0;
+  $('stepFine').value = 50;
   stepTick();
   renderStep();
 }
@@ -352,7 +359,9 @@ function setStep(on) {
   $('btnStep').setAttribute('aria-pressed', String(on));
   $('stepBar').hidden = !on;
   $('btnPlay').disabled = on; $('btnTest').disabled = on;
+  document.body.classList.toggle('stepping', on);
   countCells.forEach((el) => el.classList.toggle('pick', on));
+  if (on) { Object.assign(camTo, STEP_VIEW); lookOffTo = -camTo.ty * 0.5; } else { Object.assign(camTo, VIEWS[viewI]); lookOffTo = 0; }
   if (on) {
     if (playing) setPlaying(false);
     test = null; $('testBar').hidden = true; $('pad').hidden = true;
@@ -387,7 +396,7 @@ $('btnView').onclick = () => setView((viewI + 1) % VIEWS.length);
 $('btnStep').onclick = () => setStep(!stepMode);
 $('stepPrev').onclick = () => stepGo(stepBase - 1, false);
 $('stepNext').onclick = () => stepGo(stepBase + 1, false);
-$('stepAuto').onclick = () => { stepAuto = !stepAuto; stepAutoT = 0; if (stepAuto) { stepFine = 0; $('stepFine').value = 0; } renderStep(); };
+$('stepAuto').onclick = () => { stepAuto = !stepAuto; stepAutoT = 0; if (stepAuto) { stepFine = 0.5; $('stepFine').value = 50; } renderStep(); };
 $('stepFine').oninput = (e) => { stepAuto = false; stepFine = +e.target.value / 100; stepBeat = stepBase + stepFine; renderStep(); };
 $('btnMetro').onclick = () => { db.metro = !db.metro; save(); $('btnMetro').textContent = db.metro ? '박자음 켬' : '박자음 끔'; $('btnMetro').setAttribute('aria-pressed', String(db.metro)); };
 $('btnLessons').onclick = () => $('side').classList.toggle('open');
@@ -424,9 +433,9 @@ function frame(now) {
     const CYC = STEP_HOLD + STEP_GLIDE;
     if (stepAutoT >= CYC) { stepAutoT -= CYC; stepBase = (stepBase + 1) % 8; stepTick(); }
     const u = stepAutoT <= STEP_HOLD ? 0 : (stepAutoT - STEP_HOLD) / STEP_GLIDE;
-    stepFine = u <= 0 ? 0 : u * u * (3 - 2 * u);
+    stepFine = 0.5 + (u <= 0 ? 0 : u * u * (3 - 2 * u));
     stepBeat = stepBase + stepFine;
-    $('stepFine').value = Math.round(stepFine * 100);
+    $('stepFine').value = Math.min(100, Math.round(stepFine * 100));
     renderStep();
   }
   const b = stepMode ? stepBeat : (playing && edm.started ? beatNow() : 0);
@@ -466,8 +475,9 @@ function frame(now) {
   if (sz < -0.01) d = Math.min(d, (CENTER.z - (WZ + 0.5)) / -sz);
   if (Math.abs(sx) > 0.01) d = Math.min(d, (RW / 2 - 0.5) / Math.abs(sx));
   if (sz > 0.01) d = Math.min(d, (RD / 2 - 0.5 - CENTER.z) / sz);
-  camera.position.set(CENTER.x + sx * d, cam.ty + Math.sin(cam.el) * d, CENTER.z + sz * d);
-  camera.lookAt(CENTER.x, cam.ty, CENTER.z);
+  camera.position.set(CENTER.x + sx * d, cam.ty + lookOff + Math.sin(cam.el) * d, CENTER.z + sz * d);
+  lookOff += (lookOffTo - lookOff) * (1 - Math.exp(-6 * dt));
+  camera.lookAt(CENTER.x, cam.ty + lookOff, CENTER.z);
   markM.opacity = 0.25 + (playing || stepMode ? 0.25 * Math.exp(-(((b % 1) + 1) % 1) * 5) : 0);
   scene.userData.rec.visible = Math.floor(t * 1.4) % 2 === 0;
   renderer.render(scene, camera);
