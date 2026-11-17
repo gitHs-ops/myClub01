@@ -171,5 +171,6 @@
 <div id="tip" role="tooltip" hidden></div>
 <div id="toast" role="status"></div>
 <script type="module" src="gym.js?v=4"></script>
+<script type="module">import { installHideUi } from './hideui.js?v=1'; installHideUi({ targets: ['#gHud', '#panel', '#panelOpen', '#sess', '#gCaption'], before: '#gHud a.gChip[href="index.html"]', btnClass: 'glass gChip' });</script>
 </body>
 </html>
