@@ -312,15 +312,15 @@ const coach = person({ style: 0, top: mat(0x0f766e), bottom: mat(0x111827), shoe
 shirtText(coach, 'PT COACH');
 const me = person({ top: mat(0x6366f1), bottom: mat(0x1f2937) }, ...SPOT.me);
 const coachTag = tagSprite('코치', '#0f766e'), meTag = tagSprite('나', '#6366f1');
-// 다른 회원들: 저마다 운동 중
+// 다른 회원들: 저마다 운동 중 (사람 2·블록 3·8비트 도트 2)
 const members = [
   { p: person({ brick: true }, -RW / 2 + 1.6, -1.6, -Math.PI / 2 + Math.PI), ex: 'curl', off: 0.3 },
   { p: person({}, rackX, rackZ + 0.1, 0), ex: 'squat', off: 1.1 },
   { p: person({ brick: true }, 3.4, -2.4, Math.PI * 0.9), ex: 'pushup', off: 0.6, yawFix: true },
   { p: person({}, treadmills[0].x, treadmills[0].z, -Math.PI / 2), ex: 'jog', off: 0, y: 0.2 },
   { p: person({ brick: true }, treadmills[1].x, treadmills[1].z, -Math.PI / 2), ex: 'jog', off: 0.4, y: 0.2 },
-  { p: person({}, -3.6, 2.6, Math.PI * 0.3), ex: 'lateral', off: 0.8 },
-  { p: person({}, 4.2, 2.8, -Math.PI * 0.7), ex: 'plank', off: 0 },
+  { p: person({ pixel: true }, -3.6, 2.6, Math.PI * 0.3), ex: 'lateral', off: 0.8 },
+  { p: person({ pixel: true }, 4.2, 2.8, -Math.PI * 0.7), ex: 'plank', off: 0 },
 ];
 members.forEach((m) => giveDumbbells(m.p, !!EXI[m.ex]?.dumbbell));
 
