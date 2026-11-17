@@ -400,6 +400,14 @@ $('stepAuto').onclick = () => { stepAuto = !stepAuto; stepAutoT = 0; if (stepAut
 $('stepFine').oninput = (e) => { stepAuto = false; stepFine = +e.target.value / 100; stepBeat = stepBase + stepFine; renderStep(); };
 $('btnMetro').onclick = () => { db.metro = !db.metro; save(); $('btnMetro').textContent = db.metro ? '박자음 켬' : '박자음 끔'; $('btnMetro').setAttribute('aria-pressed', String(db.metro)); };
 $('btnLessons').onclick = () => $('side').classList.toggle('open');
+// 카드 숨기기: 채팅·코치·수업 목록·조작부를 접고 화면(댄서)만 본다. 시범·테스트는 그대로 진행
+function setUiHidden(on) {
+  document.body.classList.toggle('uiHidden', on);
+  $('btnHide').setAttribute('aria-pressed', String(on));
+  if (on) $('btnShowUi').focus({ preventScroll: true }); else $('btnHide').focus({ preventScroll: true });
+}
+$('btnHide').onclick = () => setUiHidden(true);
+$('btnShowUi').onclick = () => setUiHidden(false);
 $('sideX').onclick = () => $('side').classList.remove('open');
 $('vol').value = db.vol;
 $('vol').oninput = (e) => { db.vol = +e.target.value; save(); if (playing) edm.setVolume(db.vol / 100); };
@@ -416,6 +424,8 @@ addEventListener('keydown', (e) => {
     tap();
   } else if (stepMode && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
     e.preventDefault(); stepGo(stepBase + (e.key === 'ArrowRight' ? 1 : -1), false);
+  } else if (e.code === 'KeyH' && !e.repeat && $('intro').hidden) {
+    setUiHidden(!document.body.classList.contains('uiHidden'));
   } else if (e.key === 'Escape') { if (stepMode) setStep(false); closeResult(); $('side').classList.remove('open'); }
 });
 $('btnMetro').textContent = db.metro ? '박자음 켬' : '박자음 끔';
