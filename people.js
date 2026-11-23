@@ -54,6 +54,67 @@ const B = {
   hairBack: new THREE.BoxGeometry(0.3, 0.2, 0.07),
   hairRound: new THREE.CylinderGeometry(0.15, 0.15, 0.09, 20),
 };
+/* ───────── 실사풍 캐릭터 ─────────
+   관절 길이(THIGH/SHIN/UPARM/FOREARM)와 그룹 구조는 블록 캐릭터와 똑같이 두고
+   겉의 메시와 재질만 바꾼다. 그래야 기존 포즈 계산이 그대로 맞는다 */
+const latheOf = (pts, seg = 22) => {
+  const g = new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(Math.max(0.0015, r), y)), seg);
+  g.computeVertexNormals();
+  return g;
+};
+let R = null;
+const buildR = () => ({
+  // 팔다리: 위에서 아래로 근육이 붙었다 빠지는 실루엣 (y=0이 관절, 아래로 뻗는다)
+  upArm: latheOf([[0.001, -UPARM - 0.01], [0.038, -UPARM], [0.043, -UPARM + 0.07], [0.052, -0.14], [0.063, -0.07], [0.068, -0.025], [0.062, 0.015], [0.04, 0.045], [0.001, 0.055]]),
+  foreArm: latheOf([[0.001, -FOREARM - 0.015], [0.032, -FOREARM], [0.034, -FOREARM + 0.05], [0.04, -0.14], [0.049, -0.07], [0.052, -0.03], [0.046, 0.01], [0.001, 0.035]]),
+  thigh: latheOf([[0.001, -THIGH - 0.01], [0.058, -THIGH], [0.063, -THIGH + 0.08], [0.075, -0.24], [0.086, -0.14], [0.09, -0.06], [0.086, 0.01], [0.06, 0.055], [0.001, 0.075]]),
+  shin: latheOf([[0.001, -SHIN - 0.012], [0.03, -SHIN], [0.033, -SHIN + 0.04], [0.042, -0.3], [0.055, -0.19], [0.062, -0.12], [0.06, -0.05], [0.052, 0.005], [0.001, 0.04]]),
+  // 몸통: 가슴이 넓고 허리가 들어간다 (앞뒤로는 납작하게 눌러 쓴다)
+  torso: latheOf([[0.001, -0.02], [0.13, 0.0], [0.142, 0.08], [0.138, 0.17], [0.152, 0.26], [0.168, 0.34], [0.166, 0.41], [0.14, 0.47], [0.1, 0.51], [0.001, 0.53]], 24),
+  hips: latheOf([[0.001, -0.11], [0.1, -0.1], [0.138, -0.05], [0.152, 0.0], [0.148, 0.06], [0.13, 0.1], [0.001, 0.12]], 22),
+  neck: latheOf([[0.001, -0.02], [0.05, 0.0], [0.047, 0.05], [0.05, 0.1], [0.062, 0.13], [0.001, 0.15]], 16),
+  head: new THREE.SphereGeometry(0.105, 30, 24),
+  // 턱: 머리 실루엣 안쪽에 머물며 아래로 좁아진다 (광대 → 턱선)
+  jaw: latheOf([[0.001, -0.112], [0.024, -0.104], [0.047, -0.075], [0.067, -0.032], [0.079, 0.012], [0.078, 0.05], [0.001, 0.07]], 22),
+  nose: latheOf([[0.001, -0.03], [0.0125, -0.02], [0.0135, -0.004], [0.0105, 0.012], [0.001, 0.022]], 12),
+  ear: new THREE.SphereGeometry(0.019, 12, 10),
+  brow: new THREE.BoxGeometry(0.036, 0.0075, 0.009),
+  eyeR: new THREE.SphereGeometry(0.0165, 14, 12),
+  iris: new THREE.CircleGeometry(0.0082, 14),
+  lid: new THREE.SphereGeometry(0.0178, 14, 12, 0, Math.PI * 2, 0, 1.25),
+  lip: new THREE.TorusGeometry(0.019, 0.0055, 6, 18, Math.PI),
+  // 머리카락: 두개골에 붙는 얇은 껍질. 앞은 이마 위에서 끝난다
+  hairCap: new THREE.SphereGeometry(0.1095, 28, 22, 0, Math.PI * 2, 0, 1.46),
+  deltoid: new THREE.SphereGeometry(0.072, 16, 12),
+  hairBun: new THREE.SphereGeometry(0.052, 16, 14),
+  hairTail: latheOf([[0.001, -0.16], [0.028, -0.13], [0.046, -0.05], [0.05, 0.02], [0.001, 0.055]], 14),
+  palm: new THREE.BoxGeometry(0.044, 0.062, 0.026),
+  finger: new THREE.CapsuleGeometry(0.0085, 0.03, 3, 6),
+  thumb: new THREE.CapsuleGeometry(0.0095, 0.022, 3, 6),
+  sole: new THREE.BoxGeometry(0.082, 0.024, 0.235),
+  shoeUp: latheOf([[0.001, -0.115], [0.034, -0.1], [0.042, -0.02], [0.04, 0.05], [0.028, 0.095], [0.001, 0.115]], 16),
+  heel: new THREE.BoxGeometry(0.076, 0.034, 0.072),
+});
+const SKULL = [0.87, 1.17, 1.0];   // 머리와 머리카락이 함께 쓰는 두개골 비율
+const realGeo = () => {
+  if (R) return R;
+  R = buildR();
+  R.torso.scale(1, 1, 0.68); R.hips.scale(1, 1, 0.74);   // 가슴과 골반은 앞뒤로 눌러야 사람 단면이 된다
+  [R.head, R.hairCap].forEach((g) => g.scale(...SKULL));
+  return R;
+};
+
+const skinMat = (c) => new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.52, clearcoat: 0.12, clearcoatRoughness: 0.62, sheen: 0.18, sheenColor: new THREE.Color(0xff9e80), sheenRoughness: 0.8 });
+const clothMat = (c, rough = 0.88) => new THREE.MeshPhysicalMaterial({ color: c, roughness: rough, sheen: 0.45, sheenRoughness: 0.75, sheenColor: new THREE.Color(0xffffff) });
+const hairMat = (c) => new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.34, clearcoat: 0.3, clearcoatRoughness: 0.4 });
+const leatherMat = (c) => new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.38, clearcoat: 0.45, clearcoatRoughness: 0.35 });
+const M_SCLERA = new THREE.MeshPhysicalMaterial({ color: 0xf6f3ef, roughness: 0.18, clearcoat: 0.9, clearcoatRoughness: 0.08 });
+const M_IRIS = new THREE.MeshStandardMaterial({ color: 0x3b2415, roughness: 0.25 });
+const M_LIP = new THREE.MeshPhysicalMaterial({ color: 0xbe6a63, roughness: 0.42, clearcoat: 0.3 });
+const M_MOUTH = new THREE.MeshStandardMaterial({ color: 0x7d4038, roughness: 0.6 });
+const REAL_SKINS = [0xeec3a4, 0xdeab83, 0xc48d64, 0xf2d6bd, 0xa8714a];
+const REAL_HAIRS = [0x15100c, 0x241710, 0x47291a, 0x8a5e33, 0x2b2320];
+
 const std = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.62, ...o });
 const SKINS = [0xf4cdb0, 0xe9b98f, 0xd6a077, 0xf8dcc6, 0xb9845c].map((c) => std(c, { roughness: 0.55 }));
 let HAIRS = [0x17120f, 0x2c1d14, 0x53321c, 0x9a6c3d, 0x6a1d8a, 0x1f6fb5, 0xd9d5cf].map((c) => std(c, { roughness: 0.48 }));
@@ -140,8 +201,78 @@ function drawBubble(s, text) {
   s.scale.set(1.9, 1.9 * (c.height / c.width), 1);
 }
 
+/* 실사풍 몸: 그룹 구조는 그대로 두고 메시만 얹는다 */
+function buildReal(look, parts) {
+  const { root, hips, torso, head, arms, legs } = parts;
+  realGeo();
+  const skinC = look.skinC ?? pick(REAL_SKINS), hairC = look.hairC ?? pick(REAL_HAIRS);
+  const skin = skinMat(skinC);
+  const top = look.topReal ? clothMat(look.topReal) : clothMat(0x7c3aed);
+  const bottom = look.bottomReal ? clothMat(look.bottomReal, 0.93) : clothMat(0x1b2330, 0.93);
+  const shoe = leatherMat(look.shoeReal ?? 0xf3f4f6);
+  const hair = hairMat(hairC);
+
+  add(R.hips, bottom, 0, 0.0, 0, hips);
+  const chest = add(R.torso, top, 0, 0.06, 0, torso);
+  chest.scale.set(1.04, 1, 1);
+  add(R.neck, skin, 0, 0.52, 0, torso);
+
+  // 머리: 7.5등신. 가까이 봐도 어색하지 않게 이목구비는 작고 얕게 넣는다
+  add(R.head, skin, 0, 0, 0, head);
+  add(R.jaw, skin, 0, -0.012, 0.008, head).scale.set(0.95, 1, 1.02);
+  add(R.nose, skin, 0, -0.012, 0.097, head).rotation.x = 0.42;
+  [-1, 1].forEach((sg) => {
+    add(R.ear, skin, sg * 0.0905, -0.012, -0.002, head).scale.set(0.38, 1.2, 0.85);
+    const e = add(R.eyeR, M_SCLERA, sg * 0.0355, 0.011, 0.0815, head); e.scale.set(1, 0.52, 0.42);
+    add(R.iris, M_IRIS, sg * 0.036, 0.011, 0.092, head);
+    const lid = add(R.lid, skin, sg * 0.0355, 0.0138, 0.081, head);   // 윗눈꺼풀이 흰자를 반쯤 덮는다
+    lid.scale.set(1.02, 0.5, 0.44); lid.rotation.x = -0.34;
+    const b = add(R.brow, hair, sg * 0.0365, 0.0405, 0.0825, head);
+    b.rotation.set(-0.2, sg * -0.22, sg * 0.1);
+  });
+  const lip = add(R.lip, M_LIP, 0, -0.0515, 0.0775, head); lip.rotation.set(0.34, 0, Math.PI); lip.scale.set(1, 0.8, 1);
+  const mouth = add(R.lip, M_MOUTH, 0, -0.0505, 0.0795, head); mouth.rotation.set(0.34, 0, Math.PI); mouth.scale.set(0.94, 0.3, 0.55);
+  // 머리카락: 두개골에 붙는 껍질. 앞머리는 이마 위에서 끝난다
+  // 뒤로 기울이면 앞은 이마 위에서 끝나고 뒤는 목덜미까지 덮인다
+  const cap = add(R.hairCap, hair, 0, 0.002, -0.004, head);
+  cap.scale.setScalar(1.015); cap.rotation.x = -0.34;
+  const hs = look.hairStyle ?? Math.floor(Math.random() * 3);
+  if (hs === 1) add(R.hairBun, hair, 0, 0.055, -0.108, head);
+  else if (hs === 2) add(R.hairTail, hair, 0, -0.045, -0.105, head);
+  void cap;
+
+  [-1, 1].forEach((sg) => {
+    const dl = add(R.deltoid, top, 0, -0.012, 0, arms[sg].a);   // 어깨 (몸통과 팔을 잇는다)
+    dl.scale.set(1, 1.06, 0.92);
+    add(R.upArm, skin, 0, 0, 0, arms[sg].a);
+    add(R.foreArm, skin, 0, 0, 0, arms[sg].e);
+    const sleeve = add(R.upArm, top, 0, 0.004, 0, arms[sg].a);   // 반팔 소매
+    sleeve.scale.set(1.1, 0.42, 1.1);
+    const h = arms[sg].h;
+    add(R.palm, skin, 0, -0.034, 0, h);
+    for (let i = 0; i < 4; i++) {
+      const f = add(R.finger, skin, (i - 1.5) * 0.0118, -0.078, 0.002, h);
+      f.rotation.x = 0.12 + i * 0.03;
+    }
+    const th = add(R.thumb, skin, sg * -0.026, -0.042, 0.008, h);
+    th.rotation.set(0.2, 0, sg * 0.75);
+  });
+
+  [-1, 1].forEach((sg) => {
+    add(R.thigh, bottom, 0, 0, 0, legs[sg].t);
+    add(R.shin, bottom, 0, 0, 0, legs[sg].k).scale.set(1, 1, 1);
+    const calfSkin = add(R.shin, skin, 0, 0, 0, legs[sg].k);   // 바지 아래로 드러나는 종아리
+    calfSkin.scale.set(0.97, 0.52, 0.97); calfSkin.position.y = -SHIN * 0.48;
+    const f = legs[sg].f;
+    add(R.sole, shoe, 0, -0.052, 0.045, f);
+    add(R.shoeUp, shoe, 0, -0.028, 0.045, f).rotation.x = Math.PI / 2;
+    add(R.heel, shoe, 0, -0.03, -0.042, f);
+  });
+  root.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+}
+
 export function makePerson(scene, look = {}) {
-  const pixel = !!look.pixel, kit = pixel ? pixelKit() : null;
+  const pixel = !!look.pixel, kit = pixel ? pixelKit() : null, real = !!look.real;
   if (pixel) look = { ...look, skin: kit.skin, hair: kit.hair, top: kit.top, bottom: kit.bottom, shoe: kit.shoe };
   const brick = !!look.brick || pixel, round = brick && !pixel && Math.random() < 0.55;   // 둥근 머리(미니 피규어)와 네모 머리(비트 인형)
   const P = brick ? { ...G, ...B } : G;
@@ -151,15 +282,16 @@ export function makePerson(scene, look = {}) {
   const root = new THREE.Group(), hips = new THREE.Group(); root.add(hips);
   root.scale.setScalar(scaleH);
   const blob = add(G.blob, M_BLOB, 0, 0.012, 0, root); blob.rotation.x = -Math.PI / 2;
+  if (look.real) blob.visible = false;   // 실사 캐릭터는 진짜 그림자를 쓴다
   hips.position.y = HIP_Y;
-  add(P.hips, bottom, 0, 0.02, 0, hips);
-  if (!brick && (look.skirt ?? Math.random() < 0.22)) add(G.skirt, bottom, 0, -0.17, 0, hips);
+  if (!real) add(P.hips, bottom, 0, 0.02, 0, hips);
+  if (!real && !brick && (look.skirt ?? Math.random() < 0.22)) add(G.skirt, bottom, 0, -0.17, 0, hips);
   const torso = new THREE.Group(); torso.position.y = 0.08; hips.add(torso);
-  const chest = add(P.torso, top, 0, 0.25, 0, torso); if (!brick) chest.scale.z = 0.72;
-  add(P.neck, skin, 0, 0.55, 0, torso);
+  if (!real) { const chest = add(P.torso, top, 0, 0.25, 0, torso); if (!brick) chest.scale.z = 0.72; }
+  if (!real) add(P.neck, skin, 0, 0.55, 0, torso);
   if (brick && !pixel) [-1, 1].forEach((s) => { add(B.smallStud, top, s * 0.08, 0.561, 0, torso); });
   const head = new THREE.Group(); head.position.y = 0.69; torso.add(head);
-  if (pixel) {
+  if (real) { /* 머리 속은 buildReal이 채운다 */ } else if (pixel) {
     const h = new THREE.Mesh(PXG.head, kit.head); h.position.y = 0.02; head.add(h);
     add(PXG.hairTop, hairM, 0, 0.19, -0.01, head);
     [[-0.1, 0.05, 0.4], [0, 0.07, -0.2], [0.1, 0.03, 0.5], [-0.04, -0.09, 0.3], [0.08, -0.1, -0.5]].forEach(([x, z, r]) => {
@@ -194,23 +326,24 @@ export function makePerson(scene, look = {}) {
   const arms = {};
   [-1, 1].forEach((s) => {
     const a = new THREE.Group(); a.position.set(s * 0.215, 0.44, 0); torso.add(a);
-    add(P.upArm, top, 0, -UPARM / 2, 0, a);
+    if (!real) add(P.upArm, top, 0, -UPARM / 2, 0, a);
     const e = new THREE.Group(); e.position.y = -UPARM; a.add(e);
-    add(P.foreArm, brick ? top : skin, 0, -FOREARM / 2, 0, e);
+    if (!real) add(P.foreArm, brick ? top : skin, 0, -FOREARM / 2, 0, e);
     const h = new THREE.Group(); h.position.y = -FOREARM; e.add(h);
-    add(pixel ? PXG.hand : P.hand, skin, 0, -0.02, 0, h);
+    if (!real) add(pixel ? PXG.hand : P.hand, skin, 0, -0.02, 0, h);
     arms[s] = { a, e, h };
   });
   const legs = {};
   [-1, 1].forEach((s) => {
     const t = new THREE.Group(); t.position.set(s * 0.095, -0.02, 0); hips.add(t);
-    add(P.thigh, bottom, 0, -THIGH / 2, 0, t);
+    if (!real) add(P.thigh, bottom, 0, -THIGH / 2, 0, t);
     const k = new THREE.Group(); k.position.y = -THIGH; t.add(k);
-    add(P.shin, bottom, 0, -SHIN / 2, 0, k);
+    if (!real) add(P.shin, bottom, 0, -SHIN / 2, 0, k);
     const f = new THREE.Group(); f.position.y = -SHIN; k.add(f);
-    add(P.foot, shoe, 0, -0.03, 0.05, f);
+    if (!real) add(P.foot, shoe, 0, -0.03, 0.05, f);
     legs[s] = { t, k, f };
   });
+  if (real) buildReal(look, { root, hips, torso, head, arms, legs });
   const bubble = bubbleSprite(); bubble.position.y = 2.08 / scaleH; root.add(bubble);
   scene.add(root);
   return {

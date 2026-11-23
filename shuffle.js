@@ -1,6 +1,6 @@
 /* 온라인 셔플댄스 교습소: 코치 시범 → 느리게 따라 하기 → 박자 테스트. 기록은 이 브라우저(localStorage)에만 저장한다 */
 import * as THREE from './vendor/three.min.js';
-import { makePerson, updatePerson } from './people.js?v=12';
+import { makePerson, updatePerson } from './people.js?v=13';
 import { Edm, TRACKS } from './edm.js?v=8';
 
 const $ = (id) => document.getElementById(id);
@@ -74,9 +74,37 @@ const camera = new THREE.PerspectiveCamera(44, 1, 0.1, 200);
 const resize = () => { renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; camera.fov = camera.aspect < 1 ? 64 : 44; camera.updateProjectionMatrix(); };
 addEventListener('resize', resize); resize();
 
-scene.add(new THREE.HemisphereLight(0xffffff, 0x9b8fb5, 1.7));
-const key = new THREE.DirectionalLight(0xffffff, 1.5); key.position.set(3, 8, 7); scene.add(key);
-const rim = new THREE.DirectionalLight(0xc4b5fd, 0.8); rim.position.set(-5, 4, -6); scene.add(rim);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x9b8fb5, 1.35));
+const key = new THREE.DirectionalLight(0xffffff, 2.1); key.position.set(3, 8, 7); scene.add(key);
+const rim = new THREE.DirectionalLight(0xc4b5fd, 0.95); rim.position.set(-5, 4, -6); scene.add(rim);
+const fill = new THREE.DirectionalLight(0xffe8d2, 0.5); fill.position.set(-2, 2.4, 5); scene.add(fill);
+
+/* 코치가 실사 재질이라 반사할 환경과 그림자가 필요하다 */
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+key.castShadow = true;
+key.shadow.mapSize.set(1024, 1024);
+key.shadow.camera.near = 1; key.shadow.camera.far = 22;
+key.shadow.camera.left = -4; key.shadow.camera.right = 4; key.shadow.camera.top = 5; key.shadow.camera.bottom = -2;
+key.shadow.bias = -0.0012; key.shadow.normalBias = 0.022;
+key.target.position.set(0, 0.9, 0); scene.add(key.target);
+// 연습실을 닮은 간단한 환경맵: 밝은 천장, 보랏빛 벽, 나무 바닥
+{
+  const env = new THREE.Scene();
+  const panel = (c, w, h, d, x, y, z, rx = 0, ry = 0) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide }));
+    m.position.set(x, y, z); m.rotation.set(rx, ry, 0); env.add(m); void d;
+  };
+  panel(0xfdfbff, 14, 14, 0, 0, 5, 0, Math.PI / 2);        // 천장
+  panel(0xcdb189, 14, 14, 0, 0, -3, 0, -Math.PI / 2);      // 마루
+  panel(0xb7a6d8, 14, 9, 0, 0, 1, -6);                     // 뒷벽
+  panel(0xe7e0f4, 14, 9, 0, 0, 1, 6);
+  panel(0xd8cfe9, 12, 9, 0, -6, 1, 0, 0, Math.PI / 2);
+  panel(0xf4eefb, 12, 9, 0, 6, 1, 0, 0, -Math.PI / 2);
+  panel(0xffffff, 5, 1.4, 0, 0, 4.6, 1.5, Math.PI / 2);    // 천장 조명 띠 (피부 하이라이트)
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  scene.environment = pmrem.fromScene(env, 0.04).texture;
+  pmrem.dispose();
+}
 
 const std = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.65, ...o });
 const box = (w, h, d, m, x, y, z, parent = scene) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); parent.add(o); return o; };
@@ -92,7 +120,8 @@ const floorTex = canvasTex(512, 512, (g, w, h) => {
   }
 });
 floorTex.wrapS = floorTex.wrapT = THREE.RepeatWrapping; floorTex.repeat.set(4, 4);
-box(RW, 0.1, RD, new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.42 }), 0, -0.05, 0);
+const floorMesh = box(RW, 0.1, RD, new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.42 }), 0, -0.05, 0);
+if (floorMesh) floorMesh.receiveShadow = true;   // 코치 그림자를 받는다
 // 발 위치 표시 (코치 자리)
 const markM = new THREE.MeshBasicMaterial({ color: 0x7c3aed, transparent: true, opacity: 0.35 });
 const mark = new THREE.Mesh(new THREE.RingGeometry(0.62, 0.7, 40), markM); mark.rotation.x = -Math.PI / 2; mark.position.set(0, 0.012, -1.6); scene.add(mark);
@@ -150,7 +179,7 @@ const screen = new THREE.Mesh(new THREE.PlaneGeometry(7.2, 3.6), new THREE.MeshB
 screen.position.set(0, 2.5, RD / 2 - 0.12); screen.rotation.y = Math.PI; scene.add(screen);
 
 /* ───────── 사람 ───────── */
-const coach = makePerson(scene, { style: 3, skirt: false, height: 1.02, top: std(0x7c3aed), bottom: std(0x111827, { roughness: 0.75 }), shoe: std(0xf8fafc, { roughness: 0.4 }) });
+const coach = makePerson(scene, { real: true, height: 1.02, hairStyle: 1, skinC: 0xeec3a4, hairC: 0x241710, topReal: 0x7c3aed, bottomReal: 0x1b2330, shoeReal: 0xf8fafc });
 const backL = makePerson(scene, { brick: true });
 const backR = makePerson(scene, { pixel: true });
 const me = makePerson(scene, { pixel: true, height: 1 });
