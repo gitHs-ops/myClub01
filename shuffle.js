@@ -59,7 +59,7 @@ const SPEEDS = [0.6, 0.8, 1, 1.1];
 
 /* ───────── 저장 ───────── */
 const KEY = 'shuffle-v1';
-const db = Object.assign({ best: {}, music: 'neon', speed: 0.6, mirror: true, metro: true, vol: 80 }, (() => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } })());
+const db = Object.assign({ best: {}, music: 'neon', speed: 0.6, mirror: true, metro: true, vol: 80, desc: true }, (() => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } })());
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(db)); } catch { /* 저장 불가 */ } };
 
 /* ───────── 3D 연습실 ───────── */
@@ -407,6 +407,15 @@ function setUiHidden(on) {
   if (on) $('btnShowUi').focus({ preventScroll: true }); else $('btnHide').focus({ preventScroll: true });
 }
 $('btnHide').onclick = () => setUiHidden(true);
+// 설명 접기: 조작부는 남기고 읽을거리만 접어 댄서를 가리지 않게 한다
+function setDesc(on) {
+  db.desc = on; save();
+  document.body.classList.toggle('descOff', !on);
+  $('btnDesc').setAttribute('aria-pressed', String(on));
+  $('btnDescT').textContent = on ? '설명 접기' : '설명 펴기';
+}
+$('btnDesc').onclick = () => setDesc(!db.desc);
+setDesc(db.desc !== false);
 $('btnShowUi').onclick = () => setUiHidden(false);
 $('sideX').onclick = () => $('side').classList.remove('open');
 $('vol').value = db.vol;
@@ -426,6 +435,8 @@ addEventListener('keydown', (e) => {
     e.preventDefault(); stepGo(stepBase + (e.key === 'ArrowRight' ? 1 : -1), false);
   } else if (e.code === 'KeyH' && !e.repeat && $('intro').hidden) {
     setUiHidden(!document.body.classList.contains('uiHidden'));
+  } else if (e.code === 'KeyD' && !e.repeat && $('intro').hidden) {
+    setDesc(db.desc === false);
   } else if (e.key === 'Escape') { if (stepMode) setStep(false); closeResult(); $('side').classList.remove('open'); }
 });
 $('btnMetro').textContent = db.metro ? '박자음 켬' : '박자음 끔';

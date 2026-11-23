@@ -145,6 +145,34 @@ kbd { font: 700 11px var(--font-accent); padding: 2px 6px; border-radius: 6px; b
   .dTop { flex-wrap: wrap; }
 }
 
+/* ───────── 설명 접기 / 펴기 ─────────
+   조작부는 남기고 읽을거리(수업 이름·동작 설명·안내문)만 접어 댄서가 보이게 한다 */
+#btnDesc {
+  position: absolute; top: -13px; right: 14px; z-index: 2;
+  display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 11px;
+  border: 1px solid rgba(124, 58, 237, .2); border-radius: 13px;
+  background: rgba(255, 255, 255, .92); backdrop-filter: blur(10px);
+  box-shadow: 0 2px 8px rgba(76, 29, 149, .12);
+  font: 700 11.5px var(--font-main); color: #6d28d9; cursor: pointer;
+  transition: background .15s var(--ease), color .15s var(--ease);
+}
+#btnDesc:hover { background: #7c3aed; color: #fff; border-color: transparent; }
+#btnDesc svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; transition: transform .28s var(--ease); }
+#btnDesc[aria-pressed="false"] svg { transform: rotate(180deg); }
+.dName, .cue, .bpm, .stepHint, .stepFineWrap { transition: opacity .2s var(--ease); }
+/* 접었을 때: 읽을거리만 빠지고 카운트와 버튼은 그대로 남는다 */
+body.descOff .dName, body.descOff .bpm, body.descOff .cue,
+body.descOff .stepHint, body.descOff .stepFineWrap { display: none; }
+body.descOff .dTop { min-height: 0; margin-bottom: 2px; }
+body.descOff .dTop .segs { margin: 0 auto; }
+body.descOff #dock { padding: 10px 14px 12px; }
+body.descOff .counts { margin: 6px 0 4px; }
+body.descOff .stepBar { padding: 7px 10px 8px; }
+body.descOff .stepHead { margin-bottom: 6px; }
+/* 분해 중에는 포즈가 멈춰 있어 속도가 아무 영향도 주지 않는다. 접을 때 같이 숨긴다 */
+body.descOff.stepping .dTop { display: none; }
+body.descOff.stepping .counts { margin-top: 2px; }
+
 /* 카드 숨기기: 화면만 보기 */
 #chat, #coach, #dock, #side, #sHud { transition: opacity .35s var(--ease), transform .35s var(--ease); }
 body.uiHidden #chat, body.uiHidden #coach, body.uiHidden #dock, body.uiHidden #side, body.uiHidden #sHud { opacity: 0; pointer-events: none; transform: translateY(8px); animation: none !important; }
